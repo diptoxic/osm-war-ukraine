@@ -1,0 +1,39 @@
+# Raw data — never commit (too large + license restrictions)
+data/*.shp
+data/*.dbf
+data/*.shx
+data/*.prj
+data/*.cpg
+data/*.qpj
+data/*.geojson
+data/*.csv
+data/*.pbf
+
+# API cache — regenerated automatically
+data/cache_ohsome/
+
+# Generated outputs — reproducible from scripts
+outputs/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+*.egg-info/
+
+# Anaconda
+.conda/
+envs/
+
+# QGIS
+*.qgz
+*.qgs
+*.qgd
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
