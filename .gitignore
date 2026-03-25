@@ -8,6 +8,9 @@ data/*.qpj
 data/*.geojson
 data/*.csv
 data/*.pbf
+data/cache_kyiv/
+data/*.gpkg
+data/*.qmd
 
 # API cache — regenerated automatically
 data/cache_ohsome/
@@ -37,3 +40,4 @@ envs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
