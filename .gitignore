@@ -41,3 +41,27 @@ envs/
 Thumbs.db
 desktop.ini
 
+# Scripts de test et développement intermédiaire
+step*.py
+fix_frontline*.py
+frontline_v*.py
+frontline_final.py
+frontline_analysis_v*.py
+graph*.py
+export_grid_for_qgis.py
+make_animation.py
+
+# Présentations PowerPoint
+*.pptx
+
+# Archives
+*.zip
+
+# Dossiers de sortie intermédiaires
+outputs_*/
+qgis/
+
+# Dossier venv déjà couvert mais au cas où
+venv/
+
+data/

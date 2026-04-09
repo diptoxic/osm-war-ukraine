@@ -21,12 +21,12 @@ KYIV_BBOX = "30.2,50.2,30.9,50.7"
 
 # Period of interest: start of war → 3 months
 START = "2022-02-01"
-END   = "2022-06-01"
+END   = "2022-12-31"
 
 # Ohsome endpoint for individual contributions with centroids
 URL_CENTROID = "https://api.ohsome.org/v1/contributions/centroid"
 
-OUTPUT_DIR = "outputs"
+OUTPUT_DIR = "outputs_kyiv_1y"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ── FETCH ─────────────────────────────────────────────────────────────────────

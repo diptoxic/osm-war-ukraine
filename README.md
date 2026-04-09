@@ -1,159 +1,130 @@
-# OSM at the Test of War — Spatio-temporal Analysis, Ukraine 2022
+# OSM à l'épreuve de la guerre
+### Analyse spatio-temporelle des contributions OpenStreetMap en Ukraine (2022–2026)
 
-> **Detecting Conflict-Driven OSM Mapping Activity: A Spatio-temporal Analysis, Kyiv 2022**
-
-A research project analyzing the relationship between armed conflict events (ACLED) and OpenStreetMap editing activity in Ukraine, with a focus on Kyiv during the early phase of the 2022 invasion.
-
-**ENSG / Université Grenoble Alpes**
-Superviseur : Raphaël Bres
+**ENSG / Université Grenoble Alpes — Projet de Développement Informatique 2025-2026**  
+Superviseur : Raphaël Bres  
+Étudiants : Amine Chebil, Malek Rihani
 
 ---
 
-## Research hypotheses
+## Contexte
 
-1. **Bombings → OSM edits** — OSM building edits increase within 7 days and 500 m of a bombardment event
-2. **Proximity to frontline** — OSM editing activity concentrates closer to the frontline over time
-3. **Destruction signal** — building deletions and `ruins=*` tags are proxies for conflict-induced destruction
+Ce projet analyse l'activité des contributeurs OpenStreetMap (OSM) en Ukraine depuis le début de l'invasion russe en février 2022. L'objectif est de comprendre comment une communauté de cartographie citoyenne réagit à un conflit armé de longue durée, en croisant les éditions OSM avec les données de bombardements (ACLED) et l'évolution de la ligne de front (DeepState / ISW).
+
+Trois hypothèses sont explorées :
+- **H1** — Les bombardements déclenchent des éditions OSM dans les jours qui suivent
+- **H2** — L'activité OSM se concentre dans les zones libres et diminue dans les zones occupées
+- **H3** — Les suppressions et tags `ruins=*` constituent un proxy de destruction physique
 
 ---
 
-## Project structure
+## Structure du repo
 
 ```
 osm-war-ukraine/
 │
-├── data/                          ← place your data files here (not committed)
-│   ├── dataACLED.shp              ← ACLED conflict events (+ .dbf .shx .prj)
-│   └── cache_ohsome/              ← auto-generated API cache (not committed)
+├── osm_war_ukraine.py          # Analyse nationale Ukraine (4 régions, signaux OSM)
+├── frontline_analysis.py       # Indicateurs OSM × ligne de front (distance, zones, buffer)
+├── spatiotemporal_kyiv.py      # Série temporelle OSM × ACLED — Oblast de Kyiv
+├── fetch_kyiv_osm_edits.py     # Extraction des éditions OSM pour Kyiv
 │
-├── outputs/                       ← all generated files land here (not committed)
+├── analyse_spatiale_kiev.py    # Analyse exploratoire Kiev — suppressions & ruines (2022)
+├── analyse_spatiale_donetsk.py # Analyse exploratoire Donetsk — suppressions & ruines (2022)
+├── extraction_donees_osm_geom.py # Collecte généralisée multi-zones (Kyiv, Kharkiv, Donetsk…)
 │
-├── fetch_kyiv_osm_edits.py        ← Step 1: fetch timestamped OSM edits for Kyiv
-├── spatiotemporal_kyiv.py         ← Step 2: spatio-temporal join ACLED × OSM
-├── osm_war_ukraine.py             ← Step 3: national Ukraine analysis (4 regions)
-├── frontline_analysis.py          ← Step 4: distance to frontline indicators
-│
-├── requirements.txt               ← Python dependencies
+├── requirements.txt            # Dépendances Python
 ├── .gitignore
 └── README.md
 ```
 
 ---
 
-## Data sources
+## Données
 
-| Dataset | Source | How to get it |
-|---------|--------|---------------|
-| ACLED conflict events | [acleddata.com](https://acleddata.com) | Export Ukraine, all event types, 2022. Save as `dataACLED.shp` in `data/` |
-| OSM building edits (timestamped) | [Ohsome API](https://api.ohsome.org) | Fetched automatically by `fetch_kyiv_osm_edits.py` |
-| Frontline evolution | [ISW via Viglino Gist](https://gist.github.com/Viglino/675e3551fb4e79d03ac0cdb1bed2677e) | Fetched automatically by `frontline_analysis.py` |
-| OSM buildings (current) | [Overpass Turbo](https://overpass-turbo.eu) | Run query in `overpass_query.txt`, export as GeoJSON |
+| Source | Usage | Accès |
+|--------|-------|-------|
+| [Ohsome API](https://api.ohsome.org/) | Historique complet des éditions OSM | Public |
+| [ACLED](https://acleddata.com/) | Bombardements et batailles géoréférencés | Researcher tier (demande d'accès) |
+| [DeepState](https://github.com/cyterat/deepstate-map-data) | Géométries quotidiennes de la ligne de front | Public |
+| [ISW / Viglino](https://gist.github.com/Viglino/675e3551fb4e79d03ac0cdb1bed2677e) | Snapshots ISW de la zone occupée | Public |
+
+> ⚠️ **ACLED** : les données brutes ne sont pas incluses dans ce repo. Elles nécessitent une demande d'accès via le [researcher tier ACLED](https://acleddata.com/). Placer le fichier `dataACLED.shp` à la racine du projet avant d'exécuter les scripts.
 
 ---
 
-## Setup
-
-### 1. Clone the repository
+## Installation
 
 ```bash
-git clone https://github.com/yourname/osm-war-ukraine.git
+# Cloner le repo
+git clone https://github.com/diptoxic/osm-war-ukraine.git
 cd osm-war-ukraine
-```
 
-### 2. Create a virtual environment (recommended)
+# Créer un environnement virtuel (recommandé)
+python -m venv venv
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # Linux/Mac
 
-```bash
-conda create -n osm_war python=3.10
-conda activate osm_war
-```
-
-### 3. Install dependencies
-
-```bash
+# Installer les dépendances
 pip install -r requirements.txt
 ```
 
-### 4. Place your ACLED data
-
-Download the ACLED shapefile for Ukraine and place **all 4 files** in the `data/` folder:
-
-```
-data/
-  dataACLED.shp
-  dataACLED.dbf
-  dataACLED.shx
-  dataACLED.prj
-```
-
 ---
 
-## Run order
+## Utilisation
 
-Run the scripts in this exact order:
-
-### Step 1 — Fetch Kyiv OSM edits
-```bash
-python fetch_kyiv_osm_edits.py
-```
-Calls the Ohsome API and saves `outputs/kyiv_osm_edits_2022.geojson`
-Runtime: ~2 minutes
-
-### Step 2 — Spatio-temporal analysis (Kyiv)
-```bash
-python spatiotemporal_kyiv.py
-```
-Joins ACLED bombings with OSM edits (500 m radius, 7-day lag).
-Produces:
-- `outputs/acled_kyiv_with_osm_response.geojson`
-- `outputs/matched_pairs_kyiv.csv`
-- `outputs/fig_kyiv_map_response.png`
-- `outputs/fig_kyiv_temporal_response.png`
-
-### Step 3 — National Ukraine analysis
+### Analyse nationale Ukraine
 ```bash
 python osm_war_ukraine.py
 ```
-Fetches OSM signals (deletions, ruins, activity) for 4 regions of Ukraine.
-Results cached in `data/cache_ohsome/` — safe to interrupt and resume.
-Runtime: 20–60 minutes (first run), instant on subsequent runs.
+Produit des graphiques dans `outputs_all_ukr/` : signaux OSM par région, carte des destructions, corrélation OSM × ACLED.
 
-### Step 4 — Frontline distance analysis
+### Analyse ligne de front
 ```bash
 python frontline_analysis.py
 ```
-Computes 3 indicators: distance to frontline, occupied vs free zone activity, 30 km buffer ratio.
-Runtime: 10–30 minutes (first run).
+Produit dans `outputs/` : distance médiane contributions ↔ front, zones occupée/libre, buffer 30 km.
+
+### Analyse Kyiv (série temporelle)
+```bash
+python fetch_kyiv_osm_edits.py   # extraction des données (cache local)
+python spatiotemporal_kyiv.py    # visualisations
+```
+
+### Analyses exploratoires par zone (Malek Rihani)
+```bash
+python analyse_spatiale_kiev.py      # Kiev 2022 — suppressions & ruines
+python analyse_spatiale_donetsk.py   # Donetsk 2022 — suppressions & ruines × ACLED
+python extraction_donees_osm_geom.py # Collecte multi-zones configurable
+```
 
 ---
 
-## Outputs
+## Résultats principaux
 
-| File | Description |
-|------|-------------|
-| `fig_kyiv_map_response.png` | Map: bombings sized by OSM response count |
-| `fig_kyiv_temporal_response.png` | Time series: bombings vs OSM edit spikes |
-| `fig1_signaux_ukraine.png` | 3 OSM signals nationally over time |
-| `fig2_regions.png` | Deletions by region |
-| `fig3_osm_vs_acled.png` | OSM deletions vs ACLED events (Pearson r) |
-| `fig4_carte_ukraine.png` | National map: deletion grid + ACLED + frontline |
-| `figA_distance_front.png` | Median distance OSM edits ↔ frontline over time |
-| `figB_zones_occupee_libre.png` | Edits in occupied vs free zones |
-| `figC_buffer_front.png` | % edits within 30 km of frontline |
-| `figD_evolution_front.png` | Frontline evolution snapshots 2022→today |
+- **Signal temporel fort** : pic de contributions OSM immédiatement après le 24 février 2022, concentré sur la région de Kyiv, suivi d'une redistribution progressive
+- **Zone occupée vs zone libre** : l'activité OSM chute drastiquement dans les zones sous occupation russe — l'activité cartographique suit les zones de liberté
+- **Corrélation Pearson r = −0,62** (zone Donetsk) : dans les zones activement combattues, les suppressions OSM diminuent — les contributeurs ne peuvent plus cartographier
+- **Tags de destruction** : les suppressions et `ruins=*` augmentent après les événements militaires majeurs, validant leur usage comme proxy de destruction
 
 ---
 
-## QGIS visualization
+## Reproductibilité
 
-Load these files into QGIS for cartographic presentation:
-1. `outputs/acled_kyiv_with_osm_response.geojson` → graduated symbols on `n_osm_response`
-2. `outputs/kyiv_osm_edits_2022.geojson` → heatmap (radius 1000 m, opacity 75%)
-3. Basemap: XYZ → CartoDB Positron
+Tous les scripts utilisent un **cache local JSON** pour les requêtes Ohsome API (`data/cache_ohsome/`), ce qui permet de relancer les analyses sans re-solliciter l'API. Les fichiers de cache sont exclus du repo via `.gitignore`.
 
 ---
 
-## Notes
+## Perspectives
 
-- All API calls are cached locally — scripts can be interrupted and resumed safely
-- The `data/` and `outputs/` folders are excluded from git (see `.gitignore`)
-- Scripts tested on Python 3.10, Windows 11 and Ubuntu 22.04
+- Adaptation de la méthodologie aux routes (≈3M objets en Ukraine)
+- Soumission au **State of the Map World 2026**
+- Extension de la période d'analyse au-delà de 2024
+
+---
+
+## Références
+
+- Goldblatt et al. (2020). *Assessing OpenStreetMap completeness for management of natural disaster*. Remote Sensing, 12(1), 118.
+- Raifer et al. (2019). *OSHDB: a framework for spatio-temporal analysis of OpenStreetMap history data*. Open Geospatial Data, Software and Standards, 4(3).
+- [ACLED Data](https://acleddata.com/)
+- [ohsome API documentation](https://docs.ohsome.org/ohsome-api/v1/)

@@ -48,7 +48,7 @@ log = logging.getLogger(__name__)
 # =============================================================================
 
 START = "2022-02-01"
-END   = date.today().strftime("%Y-%m-%d")   # aujourd'hui dynamique
+END   = "2025-10-01"   # aujourd'hui dynamique
 INTERVAL = "P1M"
 
 # 4 régions Ukraine : couvrent tout le territoire
@@ -65,8 +65,8 @@ FILTER_DESTROYED = (
     "or destroyed:building=* or disused:building=*) and type:way"
 )
 
-ACLED_FILE  = "dataACLED_Kyiv.shp"
-OUTPUT_DIR  = "outputs"
+ACLED_FILE  = "dataACLED.shp"
+OUTPUT_DIR  = "outputs_all_ukr"
 DATA_DIR    = "data"
 CACHE_DIR   = os.path.join(DATA_DIR, "cache_ohsome")
 

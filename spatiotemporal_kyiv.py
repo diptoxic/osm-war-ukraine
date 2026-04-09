@@ -34,7 +34,7 @@ RADIUS_M    = 500        # spatial radius around each bombing (metres)
 LAG_DAYS    = 7          # max days after bombing to count as a response
 UTM_CRS     = "EPSG:32637"  # UTM for Ukraine (metres)
 
-OUTPUT_DIR  = "outputs"
+OUTPUT_DIR  = "outputs_kyiv_1y"
 ACLED_FILE  = "data/dataACLED_Kyiv.shp"          # your ACLED shapefile
 OSM_FILE    = os.path.join(OUTPUT_DIR, "kyiv_osm_edits_2022.geojson")
 
@@ -42,28 +42,27 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ── LOAD DATA ─────────────────────────────────────────────────────────────────
 def load_acled_kyiv():
-    """Load ACLED events filtered to Kyiv Oblast and early 2022."""
     gdf = gpd.read_file(ACLED_FILE)
     gdf.columns = [c.lower() for c in gdf.columns]
 
-    # Normalize CRS
     if gdf.crs is None:
         gdf = gdf.set_crs(4326)
     elif gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(4326)
 
-    # Date column
     date_col = next((c for c in gdf.columns if "date" in c or "timestamp" in c), None)
     if date_col:
-        gdf["bomb_date"] = pd.to_datetime(gdf[date_col], errors="coerce", utc=True).dt.tz_localize(None)
+        gdf["bomb_date"] = pd.to_datetime(
+            gdf[date_col], errors="coerce", utc=True
+        ).dt.tz_localize(None)
 
-    # Filter: Ukraine only
+    # Ukraine only
     for col in ["country", "pays", "adm0_name", "admin0"]:
         if col in gdf.columns:
             gdf = gdf[gdf[col].str.contains("Ukraine", case=False, na=False)]
             break
 
-    # Filter: Kyiv Oblast (adjust column name to match your data)
+    # Kyiv Oblast
     for col in ["admin1", "region", "oblast", "adm1_name"]:
         if col in gdf.columns:
             mask = gdf[col].str.contains("Kyiv|Kiev|Київ", case=False, na=False)
@@ -72,13 +71,28 @@ def load_acled_kyiv():
                 print(f"  Kyiv filter on '{col}': {len(gdf)} events")
                 break
 
-    # Filter: time window
+    # Time window
     gdf = gdf[
         (gdf["bomb_date"] >= pd.Timestamp("2022-02-24")) &
-        (gdf["bomb_date"] <= pd.Timestamp("2022-06-01"))
+        (gdf["bomb_date"] <= pd.Timestamp("2022-12-31"))
     ]
 
-    # Explosions / shelling only (optional filter)
+    # ── FIX 1: keep only high geo-precision events ─────────────────────────
+    # ACLED geo_precis: 1 = exact location, 2 = near town, 3+ = centroid/admin
+    if "geo_precis" in gdf.columns:
+        before = len(gdf)
+        gdf = gdf[pd.to_numeric(gdf["geo_precis"], errors="coerce") <= 2]
+        print(f"  Geo-precision filter: {before} → {len(gdf)} events kept")
+
+    # ── FIX 2: deduplicate events at identical coordinates (same day + same point)
+    gdf["_lon"] = gdf.geometry.x.round(5)
+    gdf["_lat"] = gdf.geometry.y.round(5)
+    before = len(gdf)
+    gdf = gdf.drop_duplicates(subset=["_lon", "_lat", "bomb_date"])
+    gdf = gdf.drop(columns=["_lon", "_lat"])
+    print(f"  Dedup filter: {before} → {len(gdf)} events kept")
+
+    # Explosions / shelling only
     for col in ["event_type", "type", "event"]:
         if col in gdf.columns:
             mask = gdf[col].str.contains(
@@ -89,7 +103,7 @@ def load_acled_kyiv():
                 print(f"  Explosion filter on '{col}': {len(gdf)} events")
             break
 
-    print(f"ACLED Kyiv: {len(gdf)} bombing events loaded")
+    print(f"ACLED Kyiv final: {len(gdf)} bombing events")
     return gdf.reset_index(drop=True)
 
 

@@ -52,7 +52,17 @@ log = logging.getLogger(__name__)
 # =============================================================================
 
 START     = "2022-02-01"
-END       = date.today().strftime("%Y-%m-%d")
+def _get_ohsome_end() -> str:
+    try:
+        r = requests.get("https://api.ohsome.org/v1/metadata", timeout=10)
+        if r.status_code == 200:
+            end_iso = r.json()["extractRegion"]["temporalExtent"]["toTimestamp"]
+            return end_iso[:10]
+    except Exception:
+        pass
+    return "2025-10-01"
+
+END = _get_ohsome_end()
 BUFFER_M  = 30_000      # 30 km autour du front
 GRID_RES  = 0.5         # ~45 km — cohérent avec buffer front
 UTM_CRS   = "EPSG:32637"
@@ -69,11 +79,10 @@ BBOX_UKR = "22.0,44.0,40.5,52.5"
 
 
 def _make_monthly_dates() -> list:
-    """Génère les dates de fin de mois fév 2022 → aujourd'hui."""
     months = []
     y, m = 2022, 2
-    today = date.today()
-    while (y, m) <= (today.year, today.month):
+    end_date = pd.Timestamp(END)
+    while (y, m) <= (end_date.year, end_date.month):
         last = calendar.monthrange(y, m)[1]
         months.append(f"{y}-{m:02d}-{last:02d}")
         m += 1
