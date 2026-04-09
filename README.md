@@ -3,7 +3,7 @@
 
 **ENSG / Université Grenoble Alpes — Projet de Développement Informatique 2025-2026**  
 Superviseur : Raphaël Bres  
-Étudiants : Amine Chebil, Malek Rihani
+Étudiants : [anonymized]
 
 ---
 

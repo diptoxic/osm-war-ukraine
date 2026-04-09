@@ -5,7 +5,7 @@
 ║   Contributions OSM × Bombardements ACLED                                  ║
 ║   Durée complète de la guerre : fév. 2022 → présent                       ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  Projet ENSG / Université Grenoble Alpes                                   ║
+║  Projet [anonymized] / Université Grenoble Alpes                                   ║
 ║  Commanditaire : Raphaël Bres                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                             ║

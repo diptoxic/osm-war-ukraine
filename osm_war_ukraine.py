@@ -5,7 +5,7 @@
 ║              Zone : Ukraine entière (4 régions)                     ║
 ║              Période : Fév 2022 → aujourd'hui                       ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet ENSG / Université Grenoble Alpes                            ║
+║  Projet [anonymized] / Université Grenoble Alpes                            ║
 ║  Commanditaire : Raphaël Bres                                       ║
 ╚══════════════════════════════════════════════════════════════════════╝
 

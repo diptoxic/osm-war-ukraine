@@ -5,7 +5,7 @@
 ║              Zone : Frontière Donetsk (~50 km du front)             ║
 ║              Période : Fév 2022 → Déc 2022                          ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet ENSG / Université Grenoble Alpes                            ║
+║  Projet [anonymized] / Université Grenoble Alpes                            ║
 ║  Commanditaire : Raphaël Bres                                       ║
 ╚══════════════════════════════════════════════════════════════════════╝
 

@@ -5,7 +5,7 @@
 ║              Zone : Oblast de Kiev (~80 km autour de la ville)      ║
 ║              Période : Fév 2022 → Déc 2022                          ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet ENSG / Université Grenoble Alpes                            ║
+║  Projet [anonymized] / Université Grenoble Alpes                            ║
 ║  Commanditaire : Raphaël Bres                                       ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
