@@ -1,7 +1,7 @@
-# OSM à l'épreuve de la guerre
+﻿# OSM à l'épreuve de la guerre
 ### Analyse spatio-temporelle des contributions OpenStreetMap en Ukraine (2022–2026)
 
-**ENSG / Université Grenoble Alpes — Projet de Développement Informatique 2025-2026**  
+**ENSG / [anonymized] — Projet de Développement Informatique 2025-2026**  
 Superviseur : Raphaël Bres  
 Étudiants : [anonymized]
 
@@ -128,3 +128,4 @@ Tous les scripts utilisent un **cache local JSON** pour les requêtes Ohsome API
 - Raifer et al. (2019). *OSHDB: a framework for spatio-temporal analysis of OpenStreetMap history data*. Open Geospatial Data, Software and Standards, 4(3).
 - [ACLED Data](https://acleddata.com/)
 - [ohsome API documentation](https://docs.ohsome.org/ohsome-api/v1/)
+

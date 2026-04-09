@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║         OSM À L'ÉPREUVE DE LA GUERRE — Kiev                         ║
 ║              Zone : Oblast de Kiev (~80 km autour de la ville)      ║
 ║              Période : Fév 2022 → Déc 2022                          ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet [anonymized] / Université Grenoble Alpes                            ║
+║  Projet [anonymized] / [anonymized]                            ║
 ║  Commanditaire : Raphaël Bres                                       ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
@@ -1155,3 +1155,4 @@ def main():
 if __name__ == "__main__":
     main()
     
+

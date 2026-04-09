@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Spatio-temporal analysis: ACLED bombings × OSM edits (Kyiv, 2022)
 Hypothesis: an OSM edit is a "response" to a bombing if it is:
@@ -328,3 +328,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

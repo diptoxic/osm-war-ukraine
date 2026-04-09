@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║     OSM À L'ÉPREUVE DE LA GUERRE — Analyse ligne de front           ║
@@ -580,3 +580,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

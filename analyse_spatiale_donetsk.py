@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
 ║         OSM À L'ÉPREUVE DE LA GUERRE — Analyse exploratoire         ║
 ║              Zone : Frontière Donetsk (~50 km du front)             ║
 ║              Période : Fév 2022 → Déc 2022                          ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet [anonymized] / Université Grenoble Alpes                            ║
+║  Projet [anonymized] / [anonymized]                            ║
 ║  Commanditaire : Raphaël Bres                                       ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
@@ -1018,3 +1018,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

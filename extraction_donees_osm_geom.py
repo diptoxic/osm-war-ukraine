@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║   OSM À L'ÉPREUVE DE LA GUERRE — Script de collecte généralisé             ║
 ║   Contributions OSM × Bombardements ACLED                                  ║
 ║   Durée complète de la guerre : fév. 2022 → présent                       ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  Projet [anonymized] / Université Grenoble Alpes                                   ║
+║  Projet [anonymized] / [anonymized]                                   ║
 ║  Commanditaire : Raphaël Bres                                              ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                             ║
@@ -964,3 +964,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

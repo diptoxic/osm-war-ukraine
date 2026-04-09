@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Fetch OSM building contributions for Kyiv with exact timestamps.
 Outputs a GeoJSON ready for QGIS spatial analysis.
@@ -95,3 +95,4 @@ if __name__ == "__main__":
     csv_path = os.path.join(OUTPUT_DIR, "kyiv_osm_edits_2022.csv")
     gdf.drop(columns="geometry").to_csv(csv_path, index=False)
     print(f"Saved CSV:   {csv_path}")
+
