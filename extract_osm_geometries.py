@@ -1,37 +1,37 @@
 ﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║   OSM À L'ÉPREUVE DE LA GUERRE — Script de collecte généralisé             ║
-║   Contributions OSM × Bombardements ACLED                                  ║
-║   Durée complète de la guerre : fév. 2022 → présent                       ║
+║   OSM UNDER THE TEST OF WAR — Generalized data collection script           ║
+║   OSM Contributions × ACLED Bombings                                       ║
+║   Full war duration: Feb. 2022 → present                                  ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║  Projet [anonymized] / [anonymized]                                   ║
-║  Commanditaire : Raphaël Bres                                              ║
+║  Project [anonymized] / [anonymized]                                  ║
+║  Sponsor: Raphaël Bres                                                     ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║                                                                             ║
-║  ZONES CONFIGURABLES (STUDY_AREAS) :                                       ║
-║    kyiv      → Kiev ville + proche banlieue                                ║
-║    kharkiv   → Kharkiv (zone occupée / ligne de front Est)                 ║
-║    donetsk   → Donbass / Oblast Donetsk                                    ║
-║    kherson   → Kherson (occupation puis libération nov. 2022)              ║
-║    mariupol  → Mariupol (siège mars–mai 2022)                              ║
-║    ukraine   → Ukraine entière (agrégation nationale)                      ║
+║  CONFIGURABLE ZONES (STUDY_AREAS):                                         ║
+║    kyiv      → Kyiv city + close suburbs                                   ║
+║    kharkiv   → Kharkiv (occupied zone / eastern front line)                ║
+║    donetsk   → Donbas / Donetsk Oblast                                     ║
+║    kherson   → Kherson (occupation then liberation Nov. 2022)              ║
+║    mariupol  → Mariupol (siege Mar–May 2022)                               ║
+║    ukraine   → Entire Ukraine (national aggregation)                       ║
 ║                                                                             ║
-║  OUTPUTS (par zone, dans outputs/<zone>/) :                                ║
-║    contributions_<zone>.geojson   ← 1 point / contribution OSM réelle     ║
-║    deletions_<zone>.geojson       ← suppressions seules                    ║
-║    ruins_<zone>.geojson           ← bâtiments ruins/destroyed              ║
-║    acled_bombings_<zone>.geojson  ← bombardements ACLED filtrés            ║
-║    match_osm_acled_<zone>.geojson ← contributions enrichies (corr. ACLED) ║
-║    series_mensuelle_<zone>.csv    ← agrégation mensuelle pour graphiques   ║
+║  OUTPUTS (per zone, in outputs/<zone>/):                                   ║
+║    contributions_<zone>.geojson   ← 1 point / real OSM contribution       ║
+║    deletions_<zone>.geojson       ← deletions only                         ║
+║    ruins_<zone>.geojson           ← buildings tagged ruins/destroyed       ║
+║    acled_bombings_<zone>.geojson  ← filtered ACLED bombings                ║
+║    match_osm_acled_<zone>.geojson ← enriched contributions (ACLED corr.)  ║
+║    series_mensuelle_<zone>.csv    ← monthly aggregation for charts         ║
 ║                                                                             ║
-║  FILTRE ACLED BOMBARDEMENTS (corrigé) :                                    ║
+║  ACLED BOMBING FILTER (corrected):                                         ║
 ║    event_type    = "Explosions/Remote violence"                            ║
 ║    sub_event_type ∈ air/drone strike, shelling/artillery/missile attack,   ║
 ║                     remote explosive/landmine/IED, missile attack,         ║
 ║                     guided missile strike                                  ║
 ║                                                                             ║
-║  DÉPENDANCES :                                                              ║
+║  DEPENDENCIES:                                                              ║
 ║    pip install requests geopandas shapely pandas numpy matplotlib          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
@@ -62,36 +62,36 @@ log = logging.getLogger(__name__)
 
 
 # =============================================================================
-# CONFIGURATION GLOBALE
+# GLOBAL CONFIGURATION
 # =============================================================================
 
-# ── Période de la guerre ──────────────────────────────────────────────────────
+# ── War period ────────────────────────────────────────────────────────────────
 WAR_START = "2022-02-24"
-WAR_END   = "2024-12-31"   # adapter si nécessaire
+WAR_END   = "2024-12-31"   # adjust if needed
 
-# ── Zones d'étude ─────────────────────────────────────────────────────────────
-# Chaque zone : (bbox "lon_min,lat_min,lon_max,lat_max", nom lisible)
+# ── Study zones ───────────────────────────────────────────────────────────────
+# Each zone: (bbox "lon_min,lat_min,lon_max,lat_max", readable name)
 STUDY_AREAS = {
-    "kyiv":     ("30.20,50.20,30.90,50.60", "Kiev (ville)"),
+    "kyiv":     ("30.20,50.20,30.90,50.60", "Kyiv (city)"),
     "kharkiv":  ("36.00,49.80,36.60,50.20", "Kharkiv"),
     "donetsk":  ("37.50,47.80,38.20,48.20", "Donetsk"),
     "kherson":  ("32.40,46.50,33.00,46.80", "Kherson"),
-    "mariupol": ("37.40,47.00,37.80,47.20", "Marioupol"),
-    "ukraine":  ("22.00,44.00,40.50,52.50", "Ukraine entière"),
+    "mariupol": ("37.40,47.00,37.80,47.20", "Mariupol"),
+    "ukraine":  ("22.00,44.00,40.50,52.50", "Entire Ukraine"),
 }
 
-# Zone(s) à traiter — modifier cette liste pour cibler une zone
-# Ex : ZONES_TO_PROCESS = ["kyiv", "kharkiv"]
+# Zone(s) to process — modify this list to target a specific zone
+# E.g.: ZONES_TO_PROCESS = ["kyiv", "kharkiv"]
 ZONES_TO_PROCESS = ["donetsk"]
 
-# ── Fichier ACLED ──────────────────────────────────────────────────────────────
-ACLED_FILE = "dataACLED.shp"   # placer à la racine du projet
+# ── ACLED file ────────────────────────────────────────────────────────────────
+ACLED_FILE = "dataACLED.shp"   # place at project root
 
-# ── Répertoires ───────────────────────────────────────────────────────────────
+# ── Directories ───────────────────────────────────────────────────────────────
 BASE_OUTPUT = "outputs"
 BASE_CACHE  = "data/cache"
 
-# ── Paramètres ohsome ─────────────────────────────────────────────────────────
+# ── Ohsome parameters ─────────────────────────────────────────────────────────
 FILTER_BUILDINGS = "building=* and type:way"
 FILTER_RUINS     = (
     "(building=ruins or ruins=yes or ruins=* "
@@ -99,16 +99,16 @@ FILTER_RUINS     = (
 )
 OHSOME_URL = "https://api.ohsome.org/v1"
 
-# ── Paramètres corrélation spatio-temporelle ──────────────────────────────────
-SPATIAL_BUFFER_M = 1000   # rayon en mètres
-WINDOW_DAYS      = 7      # fenêtre temporelle post-frappe
-UTM_CRS          = "EPSG:32637"   # UTM 37N — centré sur l'Ukraine
+# ── Spatio-temporal correlation parameters ────────────────────────────────────
+SPATIAL_BUFFER_M = 1000   # radius in meters
+WINDOW_DAYS      = 7      # temporal window post-strike
+UTM_CRS          = "EPSG:32637"   # UTM 37N — centered on Ukraine
 
-# ── Filtre ACLED bombardements ────────────────────────────────────────────────
-# event_type doit contenir "Explosion"
+# ── ACLED bombing filter ──────────────────────────────────────────────────────
+# event_type must contain "Explosion"
 ACLED_EVENT_TYPE_FILTER = "Explosion"
 
-# sub_event_type doit correspondre à l'un de ces types
+# sub_event_type must match one of these types
 ACLED_BOMBING_SUBTYPES = [
     "air/drone strike",
     "shelling/artillery/missile attack",
@@ -117,9 +117,9 @@ ACLED_BOMBING_SUBTYPES = [
     "guided missile strike",
 ]
 
-# ── Découpage mensuel pour ohsome (évite les timeouts) ────────────────────────
+# ── Monthly slicing for ohsome (avoids timeouts) ─────────────────────────────
 def _month_ranges(start: str, end: str) -> list[tuple[str, str]]:
-    """Génère les couples (début_mois, fin_mois) entre start et end."""
+    """Generates (month_start, month_end) pairs between start and end."""
     ranges = []
     cur = pd.Timestamp(start).replace(day=1)
     end_ts = pd.Timestamp(end)
@@ -128,7 +128,7 @@ def _month_ranges(start: str, end: str) -> list[tuple[str, str]]:
                                                          minute=0,
                                                          second=0,
                                                          microsecond=0)
-        # Le dernier morceau se clôt exactement sur WAR_END
+        # The last chunk closes exactly on WAR_END
         end_m = min(next_m, end_ts)
         ranges.append((cur.strftime("%Y-%m-%d"), end_m.strftime("%Y-%m-%d")))
         cur = next_m + pd.Timedelta(days=1)
@@ -160,7 +160,7 @@ def ohsome_post(endpoint: str, params: dict, retries: int = 3) -> dict | None:
             log.warning(f"  ohsome HTTP {r.status_code} ({i+1}/{retries}): "
                         f"{r.text[:150]}")
         except Exception as e:
-            log.warning(f"  ohsome réseau ({i+1}/{retries}): {e}")
+            log.warning(f"  ohsome network error ({i+1}/{retries}): {e}")
         time.sleep(6 * (i + 1))
     return None
 
@@ -187,13 +187,13 @@ def output_path(zone: str, name: str) -> str:
 
 
 def save_geojson(gdf: gpd.GeoDataFrame, path: str):
-    """Sauvegarde propre : sérialise les colonnes datetime avant export."""
+    """Clean save: serialize datetime columns before export."""
     tmp = gdf.copy()
     for col in tmp.columns:
         if pd.api.types.is_datetime64_any_dtype(tmp[col]):
             tmp[col] = tmp[col].astype(str)
         elif tmp[col].dtype == object:
-            # Convertir les listes/dicts en str pour GeoJSON
+            # Convert lists/dicts to str for GeoJSON
             try:
                 tmp[col] = tmp[col].apply(
                     lambda x: str(x) if isinstance(x, (list, dict)) else x
@@ -204,38 +204,38 @@ def save_geojson(gdf: gpd.GeoDataFrame, path: str):
 
 
 # =============================================================================
-# 1. CONTRIBUTIONS OSM — GÉOMÉTRIES RÉELLES (contributions/geometry)
+# 1. OSM CONTRIBUTIONS — REAL GEOMETRIES (contributions/geometry)
 # =============================================================================
 
 def fetch_contributions(zone: str, bbox: str,
                         start: str = WAR_START,
                         end:   str = WAR_END) -> gpd.GeoDataFrame:
     """
-    Récupère les géométries réelles des contributions OSM (bâtiments)
-    mois par mois via contributions/geometry.
+    Retrieves real geometries of OSM contributions (buildings)
+    month by month via contributions/geometry.
 
-    Chaque feature retournée = un bâtiment modifié/créé/supprimé,
-    avec son centroïde, sa date, et son type de contribution.
+    Each returned feature = a modified/created/deleted building,
+    with its centroid, date, and contribution type.
 
-    Colonnes produites :
-      geometry      : Point WGS84 (centroïde du bâtiment)
-      osm_id        : identifiant OSM
+    Output columns:
+      geometry      : WGS84 Point (building centroid)
+      osm_id        : OSM identifier
       contrib_type  : creation | modification | deletion
-      timestamp     : datetime UTC naïf
-      date          : date seule (str YYYY-MM-DD)
-      month         : période mensuelle (str YYYY-MM)
-      building      : valeur du tag building
-      lon / lat     : coordonnées décimales
+      timestamp     : naive UTC datetime
+      date          : date only (str YYYY-MM-DD)
+      month         : monthly period (str YYYY-MM)
+      building      : building tag value
+      lon / lat     : decimal coordinates
     """
     out_file = output_path(zone, f"contributions_{zone}.geojson")
     if os.path.exists(out_file):
-        log.info(f"[{zone}] contributions → cache : {out_file}")
+        log.info(f"[{zone}] contributions → cache: {out_file}")
         gdf = gpd.read_file(out_file)
         gdf["timestamp"] = pd.to_datetime(gdf.get("timestamp"), errors="coerce")
         return gdf
 
-    log.info(f"[{zone}] Récupération contributions {start}→{end} "
-             f"({len(MONTH_RANGES)} mois)…")
+    log.info(f"[{zone}] Fetching contributions {start}→{end} "
+             f"({len(MONTH_RANGES)} months)…")
 
     month_ranges = _month_ranges(start, end)
     all_features = []
@@ -248,7 +248,7 @@ def fetch_contributions(zone: str, bbox: str,
             features = json.load(open(c_file))
             log.info(f"  [{zone}] {start_m[:7]} → cache ({len(features)} ft.)")
         else:
-            log.info(f"  [{zone}] {start_m[:7]} — requête ohsome…")
+            log.info(f"  [{zone}] {start_m[:7]} — ohsome query…")
             params = {
                 "bboxes":     bbox,
                 "time":       f"{start_m},{end_m}",
@@ -264,9 +264,9 @@ def fetch_contributions(zone: str, bbox: str,
 
         all_features.extend(features)
 
-    log.info(f"[{zone}] Total features brutes : {len(all_features)}")
+    log.info(f"[{zone}] Total raw features: {len(all_features)}")
     if not all_features:
-        log.error(f"[{zone}] Aucune contribution — vérifier bbox et période.")
+        log.error(f"[{zone}] No contributions — check bbox and period.")
         return gpd.GeoDataFrame()
 
     records = _parse_contribution_features(all_features)
@@ -284,19 +284,19 @@ def fetch_deletions(zone: str, bbox: str,
                     start: str = WAR_START,
                     end:   str = WAR_END) -> gpd.GeoDataFrame:
     """
-    Récupère les suppressions OSM via Ohsome (filtrage sur @deletion côté réponse)
+    Retrieves OSM deletions via Ohsome (filtering on @deletion on the response side).
     """
 
     out_file = output_path(zone, f"deletions_{zone}.geojson")
 
-    # 🔁 Cache
+    # Cache
     if os.path.exists(out_file):
         log.info(f"[{zone}] deletions → cache")
         gdf = gpd.read_file(out_file)
         gdf["timestamp"] = pd.to_datetime(gdf.get("timestamp"), errors="coerce")
         return gdf
 
-    log.info(f"[{zone}] Récupération suppressions {start}→{end}…")
+    log.info(f"[{zone}] Fetching deletions {start}→{end}…")
 
     month_ranges = _month_ranges(start, end)
     all_features = []
@@ -304,7 +304,7 @@ def fetch_deletions(zone: str, bbox: str,
     for start_m, end_m in month_ranges:
         c_file = cache_path(zone, f"del_{start_m[:7]}")
 
-        # 🔁 cache mensuel
+        # Monthly cache
         if os.path.exists(c_file):
             with open(c_file) as f:
                 features = json.load(f)
@@ -327,7 +327,7 @@ def fetch_deletions(zone: str, bbox: str,
 
         all_features.extend(features)
 
-    # ✅ FILTRAGE DES SUPPRESSIONS ICI
+    # Filter deletions here
     deleted_features = []
     for f in all_features:
         props = f.get("properties", {})
@@ -336,10 +336,10 @@ def fetch_deletions(zone: str, bbox: str,
             deleted_features.append(f)
 
     if not deleted_features:
-        log.info(f"[{zone}] ⚠ aucune suppression trouvée")
+        log.info(f"[{zone}] ⚠ no deletions found")
         return gpd.GeoDataFrame()
 
-    # 🔄 transformation vers ton format interne
+    # Transform to internal format
     records = _parse_contribution_features(
         deleted_features,
         force_type="deletion"
@@ -350,28 +350,28 @@ def fetch_deletions(zone: str, bbox: str,
 
     gdf = _to_geodataframe(records)
 
-    # 🕒 gestion timestamp
+    # Handle timestamp
     if "timestamp" in gdf.columns:
         gdf["timestamp"] = pd.to_datetime(gdf["timestamp"], errors="coerce")
 
     save_geojson(gdf, out_file)
 
-    log.info(f"[{zone}] ✔ {len(gdf)} suppressions → {out_file}")
+    log.info(f"[{zone}] ✔ {len(gdf)} deletions → {out_file}")
 
     return gdf
 
 
 def fetch_ruins(zone: str, bbox: str) -> gpd.GeoDataFrame:
     """
-    Snapshots des bâtiments tagués ruins/destroyed à des dates clés.
-    Couvre toute la durée de la guerre en prenant des instantanés trimestriels.
+    Snapshots of buildings tagged ruins/destroyed at key dates.
+    Covers the full war duration with quarterly snapshots.
     """
     out_file = output_path(zone, f"ruins_{zone}.geojson")
     if os.path.exists(out_file):
         log.info(f"[{zone}] ruins → cache")
         return gpd.read_file(out_file)
 
-    # Instantanés trimestriels sur toute la guerre
+    # Quarterly snapshots across the full war period
     start_ts = pd.Timestamp(WAR_START)
     end_ts   = pd.Timestamp(WAR_END)
     key_dates = []
@@ -380,7 +380,7 @@ def fetch_ruins(zone: str, bbox: str) -> gpd.GeoDataFrame:
         key_dates.append(cur.strftime("%Y-%m-%d"))
         cur += pd.DateOffset(months=3)
 
-    log.info(f"[{zone}] Ruins — {len(key_dates)} snapshots trimestriels…")
+    log.info(f"[{zone}] Ruins — {len(key_dates)} quarterly snapshots…")
     all_features = []
 
     for d in key_dates:
@@ -479,18 +479,18 @@ def _log_contrib_summary(gdf: gpd.GeoDataFrame, zone: str):
 
 
 # =============================================================================
-# 2. ACLED — BOMBARDEMENTS UNIQUEMENT (filtre corrigé)
+# 2. ACLED — BOMBINGS ONLY (corrected filter)
 # =============================================================================
 
 def load_acled_bombings(zone: str, bbox: str,
                         start: str = WAR_START,
                         end:   str = WAR_END) -> gpd.GeoDataFrame:
     """
-    Charge les événements ACLED et filtre UNIQUEMENT les bombardements :
+    Loads ACLED events and filters ONLY bombings:
       event_type    ∋  "Explosion"    (Explosions/Remote violence)
       sub_event_type ∈  ACLED_BOMBING_SUBTYPES
 
-    Retourne un GeoDataFrame avec colonnes normalisées :
+    Returns a GeoDataFrame with normalized columns:
       geometry, event_date, event_type, sub_event_type,
       fatalities, location, notes
     """
@@ -502,10 +502,10 @@ def load_acled_bombings(zone: str, bbox: str,
         return gdf
 
     if not os.path.exists(ACLED_FILE):
-        log.warning(f"ACLED introuvable : {ACLED_FILE}")
+        log.warning(f"ACLED file not found: {ACLED_FILE}")
         return gpd.GeoDataFrame()
 
-    log.info(f"[{zone}] Chargement ACLED : {ACLED_FILE}")
+    log.info(f"[{zone}] Loading ACLED: {ACLED_FILE}")
     gdf = gpd.read_file(ACLED_FILE)
     gdf.columns = [c.lower() for c in gdf.columns]
 
@@ -514,31 +514,31 @@ def load_acled_bombings(zone: str, bbox: str,
     elif gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(4326)
 
-    # ── Filtre bbox ───────────────────────────────────────────────────────────
+    # ── Bbox filter ───────────────────────────────────────────────────────────
     lon_min, lat_min, lon_max, lat_max = map(float, bbox.split(","))
     gdf = gdf.cx[lon_min:lon_max, lat_min:lat_max].copy()
 
-    # ── Normalisation de la date ───────────────────────────────────────────────
+    # ── Date normalization ────────────────────────────────────────────────────
     date_col = next(
         (c for c in gdf.columns
          if "event_date" in c or ("date" in c and "event" in c)), None
     ) or next((c for c in gdf.columns if "date" in c), None)
 
     if not date_col:
-        log.warning(f"[{zone}] Colonne date introuvable dans ACLED")
+        log.warning(f"[{zone}] Date column not found in ACLED")
         return gpd.GeoDataFrame()
 
     gdf["event_date"] = _strip_tz(
         pd.to_datetime(gdf[date_col], errors="coerce", utc=True)
     )
 
-    # ── Filtre période ─────────────────────────────────────────────────────────
+    # ── Period filter ─────────────────────────────────────────────────────────
     gdf = gdf[
         (gdf["event_date"] >= pd.Timestamp(start)) &
         (gdf["event_date"] <= pd.Timestamp(end))
     ].copy()
 
-    # ── Filtre event_type = "Explosions/Remote violence" ─────────────────────
+    # ── Filter event_type = "Explosions/Remote violence" ─────────────────────
     event_col = next(
         (c for c in gdf.columns if c == "event_type"), None
     )
@@ -549,12 +549,12 @@ def load_acled_bombings(zone: str, bbox: str,
                 ACLED_EVENT_TYPE_FILTER, case=False, na=False
             )
         ].copy()
-        log.info(f"[{zone}] Filtre event_type 'Explosion' : "
-                 f"{before} → {len(gdf)} événements")
+        log.info(f"[{zone}] Filter event_type 'Explosion': "
+                 f"{before} → {len(gdf)} events")
     else:
-        log.warning(f"[{zone}] Colonne event_type introuvable — filtre désactivé")
+        log.warning(f"[{zone}] event_type column not found — filter disabled")
 
-    # ── Filtre sub_event_type ─────────────────────────────────────────────────
+    # ── Filter sub_event_type ─────────────────────────────────────────────────
     sub_col = next(
         (c for c in gdf.columns if "sub_event" in c), None
     )
@@ -564,16 +564,16 @@ def load_acled_bombings(zone: str, bbox: str,
         gdf = gdf[
             gdf[sub_col].str.lower().str.contains(pattern, na=False)
         ].copy()
-        log.info(f"[{zone}] Filtre sub_event_type bombardements : "
-                 f"{before} → {len(gdf)} événements")
+        log.info(f"[{zone}] Filter sub_event_type bombings: "
+                 f"{before} → {len(gdf)} events")
     else:
-        log.warning(f"[{zone}] Colonne sub_event_type introuvable")
+        log.warning(f"[{zone}] sub_event_type column not found")
 
     if gdf.empty:
-        log.warning(f"[{zone}] Aucun bombardement ACLED après filtrage.")
+        log.warning(f"[{zone}] No ACLED bombings after filtering.")
         return gpd.GeoDataFrame()
 
-    # ── Normalisation des colonnes de sortie ──────────────────────────────────
+    # ── Output column normalization ───────────────────────────────────────────
     fatalities_col = next(
         (c for c in gdf.columns if "fatal" in c or "death" in c), None
     )
@@ -599,31 +599,31 @@ def load_acled_bombings(zone: str, bbox: str,
     tmp = gdf_out.copy()
     tmp["event_date"] = tmp["event_date"].astype(str)
     tmp.to_file(out_file, driver="GeoJSON")
-    log.info(f"[{zone}] ✔ {len(gdf_out)} bombardements → {out_file}")
+    log.info(f"[{zone}] ✔ {len(gdf_out)} bombings → {out_file}")
     return gdf_out
 
 
 # =============================================================================
-# 3. CROISEMENT SPATIO-TEMPOREL OSM × BOMBARDEMENTS
+# 3. SPATIO-TEMPORAL CROSS-CORRELATION OSM × BOMBINGS
 # =============================================================================
-# SENS DE LA LECTURE (spécifique au contexte de guerre) :
+# READING DIRECTION (specific to the war context):
 #
-#   On part des CONTRIBUTIONS OSM (point par point) et on cherche
-#   si un bombardement a eu lieu dans les WINDOW_DAYS jours PRÉCÉDENTS
-#   à moins de SPATIAL_BUFFER_M mètres.
+#   Starting from OSM CONTRIBUTIONS (point by point), we check
+#   whether a bombing occurred in the WINDOW_DAYS days PRECEDING
+#   the edit, within SPATIAL_BUFFER_M meters.
 #
-#   Hypothèse : un contributeur OSM qui modifie un bâtiment peut le faire
-#   en réponse à un bombardement récent dans son voisinage immédiat.
+#   Hypothesis: an OSM contributor who edits a building may do so
+#   in response to a recent bombing in their immediate neighborhood.
 #
-#   Champ produit : has_bombing_Xkm_Yd
-#     1 = il y a eu un bombardement dans X km dans les Y jours précédant l'édition
-#     0 = pas de bombardement proche/récent
+#   Produced field: has_bombing_Xkm_Yd
+#     1 = a bombing occurred within X km in the Y days before the edit
+#     0 = no nearby/recent bombing
 #
-#   Champs complémentaires :
-#     n_bombings_Xkm_Yd  : nombre de bombardements dans la fenêtre
-#     dist_nearest_m     : distance au bombardement le plus proche (mètres)
-#     nearest_sub_type   : sous-type du bombardement le plus proche
-#     fatalities_nearby  : total de victimes dans la fenêtre
+#   Complementary fields:
+#     n_bombings_Xkm_Yd  : number of bombings within the window
+#     dist_nearest_m     : distance to nearest bombing (meters)
+#     nearest_sub_type   : sub-type of the nearest bombing
+#     fatalities_nearby  : total casualties within the window
 
 def match_contributions_with_bombings(
     gdf_osm:    gpd.GeoDataFrame,
@@ -640,16 +640,16 @@ def match_contributions_with_bombings(
         return gpd.read_file(out_file)
 
     if gdf_osm.empty or gdf_acled.empty:
-        log.warning(f"[{zone}] Données manquantes pour le croisement.")
+        log.warning(f"[{zone}] Missing data for cross-correlation.")
         return gpd.GeoDataFrame()
 
-    log.info(f"[{zone}] Croisement : {len(gdf_osm):,} OSM × {len(gdf_acled):,} ACLED")
+    log.info(f"[{zone}] Cross-correlation: {len(gdf_osm):,} OSM × {len(gdf_acled):,} ACLED")
 
-    # Projection métrique
+    # Metric projection
     osm_utm   = gdf_osm.to_crs(UTM_CRS).copy()
     acled_utm = gdf_acled.to_crs(UTM_CRS).copy()
 
-    # Dates
+    # Timestamps
     osm_dates = _strip_tz(pd.to_datetime(gdf_osm["timestamp"], errors="coerce"))
     acled_dates = _strip_tz(pd.to_datetime(gdf_acled["event_date"], errors="coerce"))
 
@@ -664,11 +664,11 @@ def match_contributions_with_bombings(
     for i, (idx, row_osm) in enumerate(osm_utm.iterrows()):
 
         if i % 5000 == 0 and i > 0:
-            log.info(f"  {i:,}/{len(osm_utm):,} traités…")
+            log.info(f"  {i:,}/{len(osm_utm):,} processed…")
 
         edit_date = osm_dates.iloc[i]
 
-        # Valeurs par défaut
+        # Default values
         nearest_sub = None
         fatal_nearby = 0
         min_dist = None
@@ -684,7 +684,7 @@ def match_contributions_with_bombings(
             })
             continue
 
-        # Fenêtre temporelle (AVANT contribution)
+        # Temporal window (BEFORE contribution)
         window_start = edit_date - timedelta(days=window_days)
 
         mask_time = (acled_dates >= window_start) & (acled_dates <= edit_date)
@@ -700,22 +700,22 @@ def match_contributions_with_bombings(
             })
             continue
 
-        # Distances
+        # Distances to ACLED events
         dists = acled_window.geometry.distance(row_osm.geometry)
 
         if not dists.empty:
             min_dist = float(dists.min())
 
-            # Bombardements dans buffer
+            # Bombings within buffer
             in_buf = dists[dists <= buffer_m]
             n_in_buf = len(in_buf)
 
-            # Plus proche événement
+            # Nearest event
             if sub_type_col:
                 nearest_idx = dists.idxmin()
                 nearest_sub = str(acled_window.loc[nearest_idx, sub_type_col])
 
-            # Fatalités
+            # Casualties
             if fatal_col and n_in_buf > 0:
                 idx_in = in_buf.index
                 fatal_nearby = int(
@@ -733,7 +733,7 @@ def match_contributions_with_bombings(
             "fatalities_nearby": fatal_nearby,
         })
 
-    # Fusion résultats
+    # Merge results
     res_df = pd.DataFrame(results, index=gdf_osm.index)
     gdf_out = gdf_osm.copy()
 
@@ -742,30 +742,30 @@ def match_contributions_with_bombings(
 
     save_geojson(gdf_out, out_file)
 
-    log.info(f"[{zone}] ✔ croisement terminé → {out_file}")
+    log.info(f"[{zone}] ✔ cross-correlation complete → {out_file}")
 
     return gdf_out
 
 # =============================================================================
-# 4. SÉRIE TEMPORELLE MENSUELLE
+# 4. MONTHLY TIME SERIES
 # =============================================================================
 
 def build_monthly_series(zone: str,
                           gdf_contrib: gpd.GeoDataFrame,
                           gdf_acled:   gpd.GeoDataFrame) -> pd.DataFrame:
     """
-    Agrège par mois :
-      n_contrib_total       : toutes contributions
-      n_deletions           : suppressions seulement
-      n_modifications       : modifications seulement
-      n_creations           : créations seulement
-      n_bombings            : bombardements ACLED
-      fatalities            : victimes totales
-    Sauvegarde en CSV pour utilisation dans QGIS / graphiques.
+    Aggregates by month:
+      n_contrib_total       : all contributions
+      n_deletions           : deletions only
+      n_modifications       : modifications only
+      n_creations           : creations only
+      n_bombings            : ACLED bombings
+      fatalities            : total casualties
+    Saved as CSV for use in QGIS / charts.
     """
     out_file = output_path(zone, f"series_mensuelle_{zone}.csv")
     if os.path.exists(out_file):
-        log.info(f"[{zone}] Série mensuelle → cache")
+        log.info(f"[{zone}] Monthly series → cache")
         return pd.read_csv(out_file, parse_dates=["month"])
 
     rows = []
@@ -820,20 +820,20 @@ def build_monthly_series(zone: str,
 
     df = pd.DataFrame(rows)
     df.to_csv(out_file, index=False)
-    log.info(f"[{zone}] ✔ Série mensuelle ({len(df)} mois) → {out_file}")
+    log.info(f"[{zone}] ✔ Monthly series ({len(df)} months) → {out_file}")
     return df
 
 
 # =============================================================================
-# 5. GRAPHIQUES DE SYNTHÈSE
+# 5. SUMMARY CHARTS
 # =============================================================================
 
 def plot_series(zone: str, zone_name: str, df: pd.DataFrame):
     """
-    Figure de synthèse pour une zone :
-    - Activité OSM totale par mois (barres bleues)
-    - Suppressions par mois (barres rouges)
-    - Bombardements ACLED (ligne violette)
+    Summary figure for a zone:
+    - Total OSM activity per month (blue bars)
+    - Deletions per month (red bars)
+    - ACLED bombings (purple line)
     """
     if df.empty:
         return
@@ -846,28 +846,28 @@ def plot_series(zone: str, zone_name: str, df: pd.DataFrame):
     ax2 = ax1.twinx()
 
     ax1.bar(df["month_dt"], df["n_contrib_total"],
-            width=25, color="#3498DB", alpha=0.55, label="Contributions OSM (total)")
+            width=25, color="#3498DB", alpha=0.55, label="OSM contributions (total)")
     ax1.bar(df["month_dt"], df["n_deletions"],
-            width=25, color="#E74C3C", alpha=0.85, label="Suppressions OSM")
+            width=25, color="#E74C3C", alpha=0.85, label="OSM deletions")
 
     if df["n_bombings"].sum() > 0:
         ax2.plot(df["month_dt"], df["n_bombings"],
                  color="#8E44AD", lw=2.2, marker="o", ms=5,
-                 label="Bombardements ACLED")
+                 label="ACLED bombings")
         ax2.fill_between(df["month_dt"], df["n_bombings"],
                          alpha=0.10, color="#8E44AD")
-        ax2.set_ylabel("Bombardements ACLED / mois",
+        ax2.set_ylabel("ACLED bombings / month",
                        color="#8E44AD", fontsize=10)
 
-    # Jalons
+    # Milestones
     ax1.axvline(pd.Timestamp("2022-02-24"), color="red", lw=1.8,
-                ls="--", alpha=0.8, label="Invasion 24 fév. 2022")
+                ls="--", alpha=0.8, label="Invasion Feb. 24, 2022")
 
-    ax1.set_ylabel("Contributions / Suppressions OSM / mois",
+    ax1.set_ylabel("OSM Contributions / Deletions / month",
                    color="#2C3E50", fontsize=10)
     ax1.set_title(
-        f"Activité OSM × Bombardements ACLED — {zone_name}\n"
-        f"Durée de la guerre : {WAR_START} → {WAR_END}",
+        f"OSM Activity × ACLED Bombings — {zone_name}\n"
+        f"War duration: {WAR_START} → {WAR_END}",
         fontsize=13, fontweight="bold"
     )
     ax1.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
@@ -887,7 +887,7 @@ def plot_series(zone: str, zone_name: str, df: pd.DataFrame):
 
 
 # =============================================================================
-# MAIN — traitement de toutes les zones configurées
+# MAIN — process all configured zones
 # =============================================================================
 
 def process_zone(zone: str):
@@ -895,7 +895,7 @@ def process_zone(zone: str):
     log.info("─" * 60)
     log.info(f"  ZONE : {zone_name.upper()} ({zone})")
     log.info(f"  Bbox : {bbox}")
-    log.info(f"  Période : {WAR_START} → {WAR_END}")
+    log.info(f"  Period  : {WAR_START} → {WAR_END}")
     log.info("─" * 60)
 
     # 1. Contributions OSM
@@ -917,34 +917,34 @@ def process_zone(zone: str):
             gdf_contrib, gdf_acled, zone
         )
 
-    # 6. Série mensuelle
+    # 6. Monthly series
     df_series = build_monthly_series(zone, gdf_contrib, gdf_acled)
 
     # 7. Graphique
     if not df_series.empty:
         plot_series(zone, zone_name, df_series)
 
-    # Résumé
-    log.info(f"[{zone}] ── RÉSUMÉ ──────────────────────────────────")
-    log.info(f"[{zone}] Contributions OSM    : {len(gdf_contrib):>8,}")
-    log.info(f"[{zone}] dont suppressions    : {len(gdf_del):>8,}")
+    # Summary
+    log.info(f"[{zone}] ── SUMMARY ─────────────────────────────────")
+    log.info(f"[{zone}] OSM contributions    : {len(gdf_contrib):>8,}")
+    log.info(f"[{zone}] of which deletions   : {len(gdf_del):>8,}")
     log.info(f"[{zone}] Ruins/destroyed      : {len(gdf_ruins):>8,}")
-    log.info(f"[{zone}] Bombardements ACLED  : {len(gdf_acled):>8,}")
+    log.info(f"[{zone}] ACLED bombings       : {len(gdf_acled):>8,}")
     if not gdf_match.empty:
         field = f"has_bombing_{SPATIAL_BUFFER_M//1000}km_{WINDOW_DAYS}d"
         if field in gdf_match.columns:
             n_c = int(gdf_match[field].sum())
             pct = n_c / len(gdf_match) * 100
-            log.info(f"[{zone}] Contributions corrélées : "
+            log.info(f"[{zone}] Correlated contributions: "
                      f"{n_c:,}/{len(gdf_match):,} ({pct:.1f}%)")
-    log.info(f"[{zone}] Fichiers → {os.path.join(BASE_OUTPUT, zone)}/")
+    log.info(f"[{zone}] Files → {os.path.join(BASE_OUTPUT, zone)}/")
 
 
 def main():
     log.info("═" * 60)
-    log.info("  OSM À L'ÉPREUVE DE LA GUERRE")
+    log.info("  OSM UNDER THE TEST OF WAR")
     log.info(f"  Zones : {ZONES_TO_PROCESS}")
-    log.info(f"  Période : {WAR_START} → {WAR_END}")
+    log.info(f"  Period  : {WAR_START} → {WAR_END}")
     log.info("═" * 60)
 
     os.makedirs(BASE_OUTPUT, exist_ok=True)
@@ -952,13 +952,13 @@ def main():
 
     for zone in ZONES_TO_PROCESS:
         if zone not in STUDY_AREAS:
-            log.error(f"Zone inconnue : {zone} — zones disponibles : "
+            log.error(f"Unknown zone: {zone} — available zones: "
                       f"{list(STUDY_AREAS.keys())}")
             continue
         process_zone(zone)
 
     log.info("═" * 60)
-    log.info("  TERMINÉ — tous les GeoJSON sont prêts pour QGIS")
+    log.info("  DONE — all GeoJSON files are ready for QGIS")
     log.info("═" * 60)
 
 

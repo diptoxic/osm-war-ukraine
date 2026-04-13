@@ -1,26 +1,26 @@
 ﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║     OSM À L'ÉPREUVE DE LA GUERRE — Analyse ligne de front           ║
-║     3 indicateurs : distance, zones occupée/libre, buffer 30 km     ║
-║     Zone : Ukraine entière | Période : Fév 2022 → aujourd'hui       ║
+║     OSM UNDER THE TEST OF WAR — Front line Analysis                 ║
+║     3 indicators: distance, occupied/free zones, 30 km buffer       ║
+║     Area: Entire Ukraine | Period: Feb 2022 → today                 ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-Source ligne de front :
-  Gist GitHub (Viglino) — fichiers ISW datés depuis le 24 fév. 2022
-  URL : https://gist.github.com/Viglino/675e3551fb4e79d03ac0cdb1bed2677e
+Front line source:
+  GitHub Gist (Viglino) — ISW dated files since 24 Feb. 2022
+  URL: https://gist.github.com/Viglino/675e3551fb4e79d03ac0cdb1bed2677e
 
-3 indicateurs :
-  ① Distance médiane contributions OSM ↔ ligne de front par mois
-  ② Contributions zone occupée vs zone libre par mois
-  ③ Contributions dans buffer 30 km autour du front par mois
+3 indicators:
+  ① Median distance OSM contributions ↔ front line per month
+  ② Contributions in occupied zone vs free zone per month
+  ③ Contributions within 30 km buffer around the front per month
 
-Stratégie anti-MemoryError :
-  - Grille 0.5° (~45 km) sur l'Ukraine entière
-  - Cache cellule par cellule dans data/cache_ohsome/
-  - Reprise automatique si interruption
+Anti-MemoryError strategy:
+  - 0.5° grid (~45 km) over entire Ukraine
+  - Cell-by-cell cache in data/cache_ohsome/
+  - Automatic resume on interruption
 
-Dépendances :
+Dependencies:
     pip install requests geopandas shapely matplotlib pandas numpy
 """
 
@@ -63,8 +63,8 @@ def _get_ohsome_end() -> str:
     return "2025-10-01"
 
 END = _get_ohsome_end()
-BUFFER_M  = 30_000      # 30 km autour du front
-GRID_RES  = 0.5         # ~45 km — cohérent avec buffer front
+BUFFER_M  = 30_000      # 30 km around the front line
+GRID_RES  = 0.5         # ~45 km — consistent with front buffer
 UTM_CRS   = "EPSG:32637"
 OUTPUT_DIR = "outputs"
 DATA_DIR   = "data"
@@ -74,7 +74,7 @@ FILTER_BUILDINGS = "building=* and type:way"
 ISW_BASE = ("https://gist.githubusercontent.com/Viglino/"
             "675e3551fb4e79d03ac0cdb1bed2677e/raw")
 
-# Bbox Ukraine entière
+# Ukraine bounding box
 BBOX_UKR = "22.0,44.0,40.5,52.5"
 
 
@@ -92,24 +92,24 @@ def _make_monthly_dates() -> list:
 
 
 MONTHLY_DATES = _make_monthly_dates()
-log.info(f"Période : {MONTHLY_DATES[0]} → {MONTHLY_DATES[-1]} ({len(MONTHLY_DATES)} mois)")
+log.info(f"Period: {MONTHLY_DATES[0]} → {MONTHLY_DATES[-1]} ({len(MONTHLY_DATES)} months)")
 
 # =============================================================================
-# 1. LIGNE DE FRONT HISTORIQUE — ISW
+# 1. HISTORICAL FRONT LINE — ISW
 # =============================================================================
 
 def fetch_isw_snapshot(target_date: str) -> tuple:
     """
-    Télécharge et met en cache le snapshot ISW pour une date donnée.
-    Essaie jusqu'à 7 jours en arrière si le fichier n'existe pas.
-    Retourne (GeoDataFrame, date_réelle) ou (None, None).
+    Downloads and caches the ISW snapshot for a given date.
+    Tries up to 7 days back if the file does not exist.
+    Returns (GeoDataFrame, actual_date) or (None, None).
     """
     os.makedirs(DATA_DIR, exist_ok=True)
     for delta in range(8):
         d     = (pd.Timestamp(target_date) - timedelta(days=delta)).strftime("%Y-%m-%d")
         cache = os.path.join(DATA_DIR, f"isw_{d}.geojson")
 
-        # Depuis le cache
+        # From cache
         if os.path.exists(cache):
             try:
                 gdf = gpd.read_file(cache)
@@ -118,7 +118,7 @@ def fetch_isw_snapshot(target_date: str) -> tuple:
             except Exception:
                 pass
 
-        # Téléchargement
+        # Download
         try:
             r = requests.get(f"{ISW_BASE}/UKR-{d}.geojson", timeout=15)
             if r.status_code == 200:
@@ -143,15 +143,15 @@ def _norm_isw(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 def load_all_frontlines() -> dict:
     """
-    Charge tous les snapshots ISW mensuels.
-    Retourne {date_str: GeoDataFrame polygone zone occupée}.
+    Loads all monthly ISW snapshots.
+    Returns {date_str: GeoDataFrame polygon of occupied zone}.
     """
-    log.info(f"Chargement des {len(MONTHLY_DATES)} snapshots ISW…")
+    log.info(f"Loading {len(MONTHLY_DATES)} ISW snapshots…")
     frontlines = {}
     for target in MONTHLY_DATES:
         gdf, actual = fetch_isw_snapshot(target)
         if gdf is None:
-            log.warning(f"  {target} → introuvable")
+            log.warning(f"  {target} → not found")
             continue
         try:
             merged = gpd.GeoDataFrame(
@@ -160,31 +160,31 @@ def load_all_frontlines() -> dict:
                 crs=4326
             )
             frontlines[target] = merged
-            log.info(f"  {target} → ok (snapshot {actual})")
+            log.info(f"  {target} → ok (snapshot: {actual})")
         except Exception as e:
-            log.warning(f"  {target} → erreur fusion : {e}")
-    log.info(f"Snapshots chargés : {len(frontlines)}/{len(MONTHLY_DATES)}")
+            log.warning(f"  {target} → merge error: {e}")
+    log.info(f"Snapshots loaded: {len(frontlines)}/{len(MONTHLY_DATES)}")
     return frontlines
 
 
 # =============================================================================
-# 2. CONTRIBUTIONS OSM — grille 0.5° avec cache cellule
+# 2. OSM CONTRIBUTIONS — 0.5° grid with cell cache
 # =============================================================================
 
 def fetch_contributions_grid() -> gpd.GeoDataFrame:
     """
-    Contributions OSM par cellule 0.5° × mois sur l'Ukraine entière.
-    Cache cellule par cellule → reprise automatique.
+    OSM contributions per 0.5° cell × month over entire Ukraine.
+    Cell-by-cell cache → automatic resume.
 
-    Retourne un GeoDataFrame :
-      geometry (Point centroïde), period, n_contrib
+    Returns a GeoDataFrame:
+      geometry (centroid Point), period, n_contrib
     """
     os.makedirs(CACHE_DIR, exist_ok=True)
     lon_min, lat_min, lon_max, lat_max = map(float, BBOX_UKR.split(","))
     lons    = np.arange(lon_min, lon_max, GRID_RES)
     lats    = np.arange(lat_min, lat_max, GRID_RES)
     n_total = len(lons) * len(lats)
-    log.info(f"Grille : {n_total} cellules × {len(MONTHLY_DATES)} mois")
+    log.info(f"Grid: {n_total} cells × {len(MONTHLY_DATES)} months")
 
     URL     = "https://api.ohsome.org/v1/contributions/count"
     records = []
@@ -229,27 +229,27 @@ def fetch_contributions_grid() -> gpd.GeoDataFrame:
 
         if (i + 1) % 10 == 0:
             pct = (i + 1) / len(lons) * 100
-            log.info(f"  {i+1}/{len(lons)} colonnes ({pct:.0f}%) — {len(records)} cellules-mois actives")
+            log.info(f"  {i+1}/{len(lons)} columns ({pct:.0f}%) — {len(records)} active cell-months")
 
     if not records:
-        log.warning("Aucune contribution trouvée.")
+        log.warning("No contributions found.")
         return gpd.GeoDataFrame()
 
     gdf = gpd.GeoDataFrame(records, crs=4326)
-    log.info(f"Grille contributions : {len(gdf)} cellules-mois actives")
+    log.info(f"Contribution grid: {len(gdf)} active cell-months")
     return gdf
 
 
 # =============================================================================
-# 3. INDICATEURS
+# 3. INDICATORS
 # =============================================================================
 
 def indicator1_distance(gdf: gpd.GeoDataFrame, frontlines: dict) -> pd.DataFrame:
     """
-    ① Distance médiane pondérée entre contributions OSM et ligne de front.
-    Pour chaque mois → médiane et moyenne en km.
+    ① Weighted median distance between OSM contributions and the front line.
+    Per month → median and mean in km.
     """
-    log.info("Indicateur ① — distance contributions ↔ front…")
+    log.info("Indicator ① — contribution ↔ front distance…")
     results = []
     for month_str, front_gdf in frontlines.items():
         period  = pd.Timestamp(month_str)
@@ -276,19 +276,19 @@ def indicator1_distance(gdf: gpd.GeoDataFrame, frontlines: dict) -> pd.DataFrame
 
     df = pd.DataFrame(results)
     if not df.empty:
-        log.info(f"  Distance min : {df['median_dist_km'].min():.0f} km "
+        log.info(f"  Min distance: {df['median_dist_km'].min():.0f} km "
                  f"({df.loc[df['median_dist_km'].idxmin(),'period'].strftime('%b %Y')})")
-        log.info(f"  Distance max : {df['median_dist_km'].max():.0f} km "
+        log.info(f"  Max distance: {df['median_dist_km'].max():.0f} km "
                  f"({df.loc[df['median_dist_km'].idxmax(),'period'].strftime('%b %Y')})")
     return df
 
 
 def indicator2_zones(gdf: gpd.GeoDataFrame, frontlines: dict) -> pd.DataFrame:
     """
-    ② Contributions dans zone occupée vs zone libre par mois.
-    Jointure spatiale point-dans-polygone ISW.
+    ② Contributions in occupied zone vs free zone per month.
+    ISW point-in-polygon spatial join.
     """
-    log.info("Indicateur ② — zones occupée/libre…")
+    log.info("Indicator ② — occupied/free zones…")
     results = []
     for month_str, front_gdf in frontlines.items():
         period  = pd.Timestamp(month_str)
@@ -313,15 +313,15 @@ def indicator2_zones(gdf: gpd.GeoDataFrame, frontlines: dict) -> pd.DataFrame:
             log.warning(f"  {month_str} : {e}")
     df = pd.DataFrame(results)
     if not df.empty:
-        log.info(f"  Ratio max zone occupée : {df['ratio_occupied'].max():.1%}")
+        log.info(f"  Max ratio occupied zone: {df['ratio_occupied'].max():.1%}")
     return df
 
 
 def indicator3_buffer(gdf: gpd.GeoDataFrame, frontlines: dict) -> pd.DataFrame:
     """
-    ③ Contributions dans buffer 30 km autour de la ligne de front.
+    ③ Contributions within a 30 km buffer around the front line.
     """
-    log.info(f"Indicateur ③ — buffer {BUFFER_M//1000} km…")
+    log.info(f"Indicator ③ — {BUFFER_M//1000} km buffer…")
     results = []
     for month_str, front_gdf in frontlines.items():
         period  = pd.Timestamp(month_str)
@@ -347,12 +347,12 @@ def indicator3_buffer(gdf: gpd.GeoDataFrame, frontlines: dict) -> pd.DataFrame:
             log.warning(f"  {month_str} : {e}")
     df = pd.DataFrame(results)
     if not df.empty:
-        log.info(f"  Ratio max dans buffer : {df['ratio_buffer'].max():.1%}")
+        log.info(f"  Max ratio in buffer: {df['ratio_buffer'].max():.1%}")
     return df
 
 
 # =============================================================================
-# 4. VISUALISATIONS
+# 4. VISUALIZATIONS
 # =============================================================================
 
 INV = pd.Timestamp("2022-02-24")
@@ -372,7 +372,7 @@ def plot_indicators(df1: pd.DataFrame, df2: pd.DataFrame,
           "free": "#3498DB", "buf": "#E67E22", "front": "#27AE60"}
     period_label = date.today().strftime("%b %Y")
 
-    # ── Fig A : Distance médiane ──────────────────────────────────────────────
+    # ── Fig A: Median distance ────────────────────────────────────────────────
     if not df1.empty:
         fig, ax = plt.subplots(figsize=(15, 5))
         ax.plot(df1["period"], df1["median_dist_km"],
@@ -380,7 +380,7 @@ def plot_indicators(df1: pd.DataFrame, df2: pd.DataFrame,
                 label="Distance médiane pondérée (km)")
         ax.fill_between(df1["period"], df1["median_dist_km"],
                         alpha=0.15, color=C["dist"])
-        # Annotations min/max
+        # Min/max annotations
         for fn, label, offset in [("idxmin", "Min", -20), ("idxmax", "Max", +20)]:
             idx = getattr(df1["median_dist_km"], fn)()
             ax.annotate(
@@ -403,7 +403,7 @@ def plot_indicators(df1: pd.DataFrame, df2: pd.DataFrame,
                     dpi=150, bbox_inches="tight")
         log.info("✔ Fig A"); plt.close(fig)
 
-    # ── Fig B : Zones occupée / libre ────────────────────────────────────────
+    # ── Fig B: Occupied / free zones ─────────────────────────────────────────
     if not df2.empty:
         fig, ax1 = plt.subplots(figsize=(15, 6))
         ax2 = ax1.twinx()
@@ -432,7 +432,7 @@ def plot_indicators(df1: pd.DataFrame, df2: pd.DataFrame,
                     dpi=150, bbox_inches="tight")
         log.info("✔ Fig B"); plt.close(fig)
 
-    # ── Fig C : Buffer 30 km ──────────────────────────────────────────────────
+    # ── Fig C: 30 km buffer ───────────────────────────────────────────────────
     if not df3.empty:
         fig, ax1 = plt.subplots(figsize=(15, 5))
         ax2 = ax1.twinx()
@@ -461,7 +461,7 @@ def plot_indicators(df1: pd.DataFrame, df2: pd.DataFrame,
                     dpi=150, bbox_inches="tight")
         log.info("✔ Fig C"); plt.close(fig)
 
-    # ── Fig D : Grille cartes évolution front (6 snapshots) ──────────────────
+    # ── Fig D: Front evolution map grid (6 snapshots) ────────────────────────
     snap_dates = [
         "2022-02-28", "2022-06-30", "2022-12-31",
         "2023-06-30", "2024-06-30",
@@ -491,7 +491,7 @@ def plot_indicators(df1: pd.DataFrame, df2: pd.DataFrame,
                 except Exception:
                     pass
 
-        # Masquer les sous-graphiques vides
+        # Hide empty subplots
         for idx in range(len(snap_dates), len(axes)):
             axes[idx].set_visible(False)
 
@@ -513,24 +513,24 @@ def plot_indicators(df1: pd.DataFrame, df2: pd.DataFrame,
 
 def main():
     log.info("═" * 60)
-    log.info("  OSM vs LIGNE DE FRONT — Ukraine entière")
-    log.info(f"  Période : {START} → {END} ({len(MONTHLY_DATES)} mois)")
-    log.info(f"  Buffer  : {BUFFER_M//1000} km | Grille : {GRID_RES}° (~45 km)")
+    log.info("  OSM vs FRONT LINE — Entire Ukraine")
+    log.info(f"  Period: {START} → {END} ({len(MONTHLY_DATES)} months)")
+    log.info(f"  Buffer: {BUFFER_M//1000} km | Grid: {GRID_RES}° (~45 km)")
     log.info("═" * 60)
 
     for d in [OUTPUT_DIR, DATA_DIR, CACHE_DIR]:
         os.makedirs(d, exist_ok=True)
 
-    # 1. Snapshots ISW ────────────────────────────────────────────────────────
+    # 1. ISW snapshots ────────────────────────────────────────────────────────
     frontlines = load_all_frontlines()
     if not frontlines:
-        log.error("Aucun snapshot ISW disponible — arrêt.")
+        log.error("No ISW snapshot available — stopping.")
         sys.exit(1)
 
-    # 2. Contributions par cellule (avec cache) ───────────────────────────────
+    # 2. Contributions per cell (with cache) ──────────────────────────────────
     cache_contribs = os.path.join(DATA_DIR, "contributions_grid_ukraine.geojson")
     if os.path.exists(cache_contribs):
-        log.info(f"Contributions → cache : {cache_contribs}")
+        log.info(f"Contributions → cache: {cache_contribs}")
         gdf = gpd.read_file(cache_contribs)
         gdf["period"] = pd.to_datetime(gdf["period"], errors="coerce")
     else:
@@ -540,10 +540,10 @@ def main():
             log.info(f"✔ {cache_contribs}")
 
     if gdf.empty:
-        log.error("Aucune contribution disponible — arrêt.")
+        log.error("No contributions available — stopping.")
         sys.exit(1)
 
-    # 3. Calcul des indicateurs ────────────────────────────────────────────────
+    # 3. Indicator computation ─────────────────────────────────────────────────
     df1 = indicator1_distance(gdf, frontlines)
     if not df1.empty:
         df1.to_csv(os.path.join(OUTPUT_DIR, "ind1_distance_front.csv"), index=False)
@@ -559,22 +559,22 @@ def main():
         df3.to_csv(os.path.join(OUTPUT_DIR, "ind3_buffer.csv"), index=False)
         log.info("✔ ind3_buffer.csv")
 
-    # 4. Visualisations ───────────────────────────────────────────────────────
+    # 4. Visualizations ───────────────────────────────────────────────────────
     plot_indicators(df1, df2, df3, frontlines)
 
-    # Résumé ──────────────────────────────────────────────────────────────────
+    # Summary ─────────────────────────────────────────────────────────────────
     log.info("═" * 60)
-    log.info("  RÉSUMÉ")
-    log.info(f"  Snapshots ISW      : {len(frontlines)}/{len(MONTHLY_DATES)} mois")
-    log.info(f"  Cellules-mois OSM  : {len(gdf)}")
+    log.info("  SUMMARY")
+    log.info(f"  ISW snapshots      : {len(frontlines)}/{len(MONTHLY_DATES)} months")
+    log.info(f"  OSM cell-months    : {len(gdf)}")
     if not df1.empty:
-        log.info(f"  ① Distance min     : {df1['median_dist_km'].min():.0f} km")
-        log.info(f"  ① Distance max     : {df1['median_dist_km'].max():.0f} km")
+        log.info(f"  ① Min distance     : {df1['median_dist_km'].min():.0f} km")
+        log.info(f"  ① Max distance     : {df1['median_dist_km'].max():.0f} km")
     if not df2.empty:
-        log.info(f"  ② Ratio occ. max   : {df2['ratio_occupied'].max():.1%}")
+        log.info(f"  ② Max occ. ratio   : {df2['ratio_occupied'].max():.1%}")
     if not df3.empty:
-        log.info(f"  ③ Ratio buffer max : {df3['ratio_buffer'].max():.1%}")
-    log.info(f"  Fichiers → {OUTPUT_DIR}/")
+        log.info(f"  ③ Max buffer ratio : {df3['ratio_buffer'].max():.1%}")
+    log.info(f"  Files → {OUTPUT_DIR}/")
     log.info("═" * 60)
 
 

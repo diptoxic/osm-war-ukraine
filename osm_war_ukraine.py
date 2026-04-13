@@ -1,21 +1,21 @@
 ﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║         OSM À L'ÉPREUVE DE LA GUERRE — Analyse principale           ║
-║              Zone : Ukraine entière (4 régions)                     ║
-║              Période : Fév 2022 → aujourd'hui                       ║
+║         OSM UNDER THE TEST OF WAR — Main Analysis                   ║
+║              Area: Entire Ukraine (4 regions)                       ║
+║              Period: Feb 2022 → today                               ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet [anonymized] / [anonymized]                            ║
-║  Commanditaire : Raphaël Bres                                       ║
+║  Project [anonymized] / [anonymized]                           ║
+║  Sponsor: Raphaël Bres                                              ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-Stratégie anti-MemoryError :
-  - Ukraine découpée en 4 régions traitées séquentiellement
-  - Grille 0.5° (~45 km) pour les requêtes géométriques
-  - Cache JSON par région dans data/cache_ohsome/
-    → reprise automatique si interruption, pas de re-requête
+Anti-MemoryError strategy:
+  - Ukraine split into 4 regions processed sequentially
+  - 0.5° grid (~45 km) for geometric queries
+  - JSON cache per region in data/cache_ohsome/
+    → automatic resume on interruption, no re-query
 
-Dépendances :
+Dependencies:
     pip install requests geopandas shapely matplotlib pandas numpy contextily
 """
 
@@ -37,7 +37,7 @@ try:
     HAS_CTX = True
 except ImportError:
     HAS_CTX = False
-    print("[INFO] contextily non disponible")
+    print("[INFO] contextily not available")
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
@@ -48,10 +48,10 @@ log = logging.getLogger(__name__)
 # =============================================================================
 
 START = "2022-02-01"
-END   = "2025-10-01"   # aujourd'hui dynamique
+END   = "2025-10-01"   # dynamic end date
 INTERVAL = "P1M"
 
-# 4 régions Ukraine : couvrent tout le territoire
+# 4 Ukraine regions: cover the entire territory
 REGIONS = {
     "Ouest":  "22.0,47.5,30.0,52.5",
     "Centre": "30.0,47.5,35.0,52.5",
@@ -80,11 +80,11 @@ REGION_COLORS = {
 }
 
 # =============================================================================
-# UTILITAIRES
+# UTILITIES
 # =============================================================================
 
 def _strip_tz(s: pd.Series) -> pd.Series:
-    """Supprime le timezone d'une Series datetime — robuste à toute source."""
+    """Removes the timezone from a datetime Series — robust to any source."""
     try:
         if hasattr(s.dt, "tz") and s.dt.tz is not None:
             return s.dt.tz_convert("UTC").dt.tz_localize(None)
@@ -94,7 +94,7 @@ def _strip_tz(s: pd.Series) -> pd.Series:
 
 
 def _ohsome(endpoint: str, params: dict) -> dict:
-    """POST ohsome avec 3 tentatives."""
+    """POST to ohsome with 3 retries."""
     url = f"https://api.ohsome.org/v1/{endpoint}"
     for attempt in range(3):
         try:
@@ -103,7 +103,7 @@ def _ohsome(endpoint: str, params: dict) -> dict:
                 return r.json()
             log.warning(f"ohsome {r.status_code} ({attempt+1}/3): {r.text[:120]}")
         except requests.RequestException as e:
-            log.warning(f"ohsome réseau ({attempt+1}/3): {e}")
+            log.warning(f"ohsome network ({attempt+1}/3): {e}")
         time.sleep(5)
     return {}
 
@@ -123,7 +123,7 @@ def _save(name: str, data):
 
 
 # =============================================================================
-# 1. LIGNE DE FRONT ISW
+# 1. ISW FRONT LINE
 # =============================================================================
 
 ISW_BASE = ("https://gist.githubusercontent.com/Viglino/"
@@ -131,7 +131,7 @@ ISW_BASE = ("https://gist.githubusercontent.com/Viglino/"
 
 
 def fetch_frontline(target_date: str = None) -> gpd.GeoDataFrame:
-    """Snapshot ISW le plus proche de target_date (fallback 7 jours)."""
+    """ISW snapshot closest to target_date (7-day fallback)."""
     target = target_date or END
     os.makedirs(DATA_DIR, exist_ok=True)
     for delta in range(8):
@@ -148,12 +148,12 @@ def fetch_frontline(target_date: str = None) -> gpd.GeoDataFrame:
                 open(cache, "wb").write(r.content)
                 gdf = gpd.read_file(cache)
                 if not gdf.empty:
-                    log.info(f"ISW {target} → téléchargé ({d})")
+                    log.info(f"ISW {target} → downloaded ({d})")
                     return _norm_isw(gdf)
         except requests.RequestException:
             pass
         time.sleep(0.3)
-    log.warning(f"ISW {target} introuvable")
+    log.warning(f"ISW {target} not found")
     return gpd.GeoDataFrame()
 
 
@@ -170,7 +170,7 @@ def _norm_isw(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 # =============================================================================
 
 def load_acled() -> gpd.GeoDataFrame:
-    log.info(f"Chargement ACLED : {ACLED_FILE}")
+    log.info(f"Loading ACLED: {ACLED_FILE}")
     gdf = gpd.read_file(ACLED_FILE)
     gdf.columns = [c.lower() for c in gdf.columns]
     if gdf.crs is None:
@@ -191,20 +191,20 @@ def load_acled() -> gpd.GeoDataFrame:
         gdf = gdf[(gdf["date"] >= pd.Timestamp(START)) &
                   (gdf["date"] <= pd.Timestamp(END))]
 
-    log.info(f"ACLED : {len(gdf)} événements")
+    log.info(f"ACLED: {len(gdf)} events")
     return gdf.reset_index(drop=True)
 
 
 # =============================================================================
-# 3. OHSOME — par région avec cache
+# 3. OHSOME — per region with cache
 # =============================================================================
 
 def _fetch_region(signal: str, bbox: str, region: str, extra_params: dict = None) -> list:
-    """Requête ohsome pour une région, avec cache automatique."""
+    """Ohsome query for a region, with automatic cache."""
     key = f"{signal}_{region.lower()}"
     cached = _load(key)
     if cached is not None:
-        log.info(f"  {region} [{signal}] → cache")
+        log.info(f"  {region} [{signal}] → cached")
         return cached
 
     endpoints = {
@@ -232,7 +232,7 @@ def _fetch_region(signal: str, bbox: str, region: str, extra_params: dict = None
 
 
 def _build_df(rows: list, signal: str, region: str) -> pd.DataFrame:
-    """Convertit les rows ohsome en DataFrame normalisé."""
+    """Converts ohsome rows into a normalized DataFrame."""
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
@@ -247,10 +247,10 @@ def _build_df(rows: list, signal: str, region: str) -> pd.DataFrame:
 
 def fetch_signal(signal: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Récupère un signal OSM pour toutes les régions.
-    Retourne (DataFrame national agrégé, DataFrame par région).
+    Fetches an OSM signal for all regions.
+    Returns (aggregated national DataFrame, per-region DataFrame).
     """
-    log.info(f"Signal '{signal}' — 4 régions…")
+    log.info(f"Signal '{signal}' — 4 regions…")
     val_col = "n_ruines" if signal == "ruins" else (
               "deletions" if signal == "deletions" else "activity")
     frames = []
@@ -266,20 +266,20 @@ def fetch_signal(signal: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     all_df = pd.concat(frames, ignore_index=True)
     nat_df = (all_df.groupby("period", as_index=False)[val_col]
                     .sum().sort_values("period").reset_index(drop=True))
-    log.info(f"  {signal} → {nat_df[val_col].sum()} total, {len(nat_df)} mois")
+    log.info(f"  {signal} → {nat_df[val_col].sum()} total, {len(nat_df)} months")
     return nat_df, all_df
 
 
 def fetch_grid_deletions() -> gpd.GeoDataFrame:
     """
-    Suppressions géolocalisées — grille 0.5° sur l'Ukraine entière.
-    Une requête par cellule, cache cellule par cellule.
+    Geolocated deletions — 0.5° grid over entire Ukraine.
+    One query per cell, cache cell by cell.
     """
-    log.info("Grille suppressions 0.5° — Ukraine entière…")
+    log.info("Deletion grid 0.5° — entire Ukraine…")
     lon_min, lat_min, lon_max, lat_max = 22.0, 44.0, 40.5, 52.5
     lons = np.arange(lon_min, lon_max, GRID_RES)
     lats = np.arange(lat_min, lat_max, GRID_RES)
-    log.info(f"  {len(lons)*len(lats)} cellules")
+    log.info(f"  {len(lons)*len(lats)} cells")
 
     URL     = "https://api.ohsome.org/v1/contributions/count"
     records = []
@@ -318,17 +318,17 @@ def fetch_grid_deletions() -> gpd.GeoDataFrame:
 
         if (i + 1) % 10 == 0:
             done = (i+1) * len(lats)
-            log.info(f"  {done}/{len(lons)*len(lats)} cellules — {len(records)} actives")
+            log.info(f"  {done}/{len(lons)*len(lats)} cells — {len(records)} active")
 
     if not records:
         return gpd.GeoDataFrame()
     gdf = gpd.GeoDataFrame(records, crs=4326)
-    log.info(f"Grille : {len(gdf)} cellules avec suppressions")
+    log.info(f"Grid: {len(gdf)} cells with deletions")
     return gdf
 
 
 # =============================================================================
-# 4. CROISEMENT OSM × ACLED
+# 4. OSM × ACLED CROSS-CORRELATION
 # =============================================================================
 
 def correlate(df_del: pd.DataFrame, gdf_acled: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -354,7 +354,7 @@ def correlate(df_del: pd.DataFrame, gdf_acled: gpd.GeoDataFrame) -> pd.DataFrame
 
 
 # =============================================================================
-# 5. VISUALISATIONS
+# 5. VISUALIZATIONS
 # =============================================================================
 
 INV = pd.Timestamp("2022-02-24")
@@ -374,7 +374,7 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
 
     period_label = pd.Timestamp(END).strftime("%b %Y")
 
-    # ── Fig 1 : 3 signaux nationaux ───────────────────────────────────────────
+    # ── Fig 1: 3 national signals ─────────────────────────────────────────────
     fig, axes = plt.subplots(3, 1, figsize=(15, 13), sharex=True)
     fig.suptitle(f"Signaux OSM — Ukraine entière | Fév 2022 → {period_label}",
                  fontsize=15, fontweight="bold", y=0.99)
@@ -419,7 +419,7 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
                 dpi=150, bbox_inches="tight")
     log.info("✔ Fig 1"); plt.close(fig)
 
-    # ── Fig 2 : Suppressions par région ───────────────────────────────────────
+    # ── Fig 2: Deletions by region ────────────────────────────────────────────
     if not reg["deletions"].empty:
         fig, axes = plt.subplots(2, 2, figsize=(16, 10), sharex=True, sharey=False)
         fig.suptitle(f"Suppressions OSM par région — Ukraine | Fév 2022 → {period_label}",
@@ -441,7 +441,7 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
                     dpi=150, bbox_inches="tight")
         log.info("✔ Fig 2"); plt.close(fig)
 
-    # ── Fig 3 : OSM vs ACLED ──────────────────────────────────────────────────
+    # ── Fig 3: OSM vs ACLED ───────────────────────────────────────────────────
     if not df_corr.empty and "n_acled_events" in df_corr.columns:
         fig, ax1 = plt.subplots(figsize=(15, 6))
         ax2 = ax1.twinx()
@@ -471,7 +471,7 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
                     dpi=150, bbox_inches="tight")
         log.info("✔ Fig 3"); plt.close(fig)
 
-    # ── Fig 4 : Carte Ukraine ──────────────────────────────────────────────────
+    # ── Fig 4: Ukraine map ────────────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(14, 10))
     ax.set_xlim(22.0, 40.5); ax.set_ylim(44.0, 52.5)
 
@@ -511,7 +511,7 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
             cx.add_basemap(ax, crs="EPSG:4326",
                            source=cx.providers.CartoDB.Positron, zoom=7)
         except Exception as e:
-            log.warning(f"Fond de carte : {e}")
+            log.warning(f"Basemap: {e}")
 
     ax.set_title(
         f"Carte des destructions OSM — Ukraine, Fév 2022 → {period_label}\n"
@@ -524,7 +524,7 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
                 dpi=150, bbox_inches="tight")
     log.info("✔ Fig 4"); plt.close(fig)
 
-    # ── Fig 5 : Activité par région ────────────────────────────────────────────
+    # ── Fig 5: Activity by region ─────────────────────────────────────────────
     if not reg["activity"].empty:
         fig, ax = plt.subplots(figsize=(15, 6))
         for region, color in REGION_COLORS.items():
@@ -542,7 +542,7 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
                     dpi=150, bbox_inches="tight")
         log.info("✔ Fig 5"); plt.close(fig)
 
-    log.info(f"Toutes les figures → '{OUTPUT_DIR}/'")
+    log.info(f"All figures → '{OUTPUT_DIR}/'")
 
 
 # =============================================================================
@@ -551,15 +551,15 @@ def plot_all(nat: dict, reg: dict, df_corr, gdf_acled, gdf_grid, front_gdf):
 
 def main():
     log.info("═" * 60)
-    log.info("  OSM À L'ÉPREUVE DE LA GUERRE — Ukraine entière")
-    log.info(f"  Période : {START} → {END}")
-    log.info(f"  Régions : {', '.join(REGIONS.keys())}")
+    log.info("  OSM UNDER THE TEST OF WAR — Entire Ukraine")
+    log.info(f"  Period: {START} → {END}")
+    log.info(f"  Regions: {', '.join(REGIONS.keys())}")
     log.info("═" * 60)
 
     for d in [OUTPUT_DIR, DATA_DIR, CACHE_DIR]:
         os.makedirs(d, exist_ok=True)
 
-    # 1. Ligne de front ISW ───────────────────────────────────────────────────
+    # 1. ISW front line ───────────────────────────────────────────────────────
     front_gdf = fetch_frontline(target_date=END)
     if not front_gdf.empty:
         front_gdf.to_file(os.path.join(OUTPUT_DIR, "front_isw_latest.geojson"),
@@ -571,14 +571,14 @@ def main():
     if not gdf_acled.empty:
         gdf_acled.to_file(os.path.join(OUTPUT_DIR, "acled_ukraine.geojson"),
                           driver="GeoJSON")
-        log.info(f"✔ acled_ukraine.geojson ({len(gdf_acled)} événements)")
+        log.info(f"✔ acled_ukraine.geojson ({len(gdf_acled)} events)")
 
-    # 3. Signaux ohsome ───────────────────────────────────────────────────────
+    # 3. Ohsome signals ───────────────────────────────────────────────────────
     nat, reg = {}, {}
     for signal in ["deletions", "ruins", "activity"]:
         nat[signal], reg[signal] = fetch_signal(signal)
 
-    # Sauvegarde immédiate
+    # Immediate save
     for signal in ["deletions", "ruins", "activity"]:
         val_col = "n_ruines" if signal == "ruins" else signal
         for scope, df in [("national", nat[signal]), ("regions", reg[signal])]:
@@ -587,17 +587,17 @@ def main():
                 df.to_csv(os.path.join(OUTPUT_DIR, fname), index=False)
                 log.info(f"✔ {fname}")
 
-    # 4. Corrélation OSM × ACLED ──────────────────────────────────────────────
+    # 4. OSM × ACLED correlation ──────────────────────────────────────────────
     df_corr = correlate(nat["deletions"], gdf_acled)
     if not df_corr.empty:
         df_corr.to_csv(os.path.join(OUTPUT_DIR, "correlation_osm_acled.csv"),
                        index=False)
         log.info("✔ correlation_osm_acled.csv")
 
-    # 5. Grille spatiale ──────────────────────────────────────────────────────
+    # 5. Spatial grid ─────────────────────────────────────────────────────────
     cache_grid = os.path.join(OUTPUT_DIR, "grille_suppressions_ukraine.geojson")
     if os.path.exists(cache_grid):
-        log.info(f"Grille → cache : {cache_grid}")
+        log.info(f"Grid → cache: {cache_grid}")
         gdf_grid = gpd.read_file(cache_grid)
     else:
         gdf_grid = fetch_grid_deletions()
@@ -605,19 +605,19 @@ def main():
             gdf_grid.to_file(cache_grid, driver="GeoJSON")
             log.info(f"✔ {cache_grid}")
 
-    # 6. Visualisations ───────────────────────────────────────────────────────
+    # 6. Visualizations ───────────────────────────────────────────────────────
     plot_all(nat, reg, df_corr, gdf_acled, gdf_grid, front_gdf)
 
-    # Résumé ──────────────────────────────────────────────────────────────────
+    # Summary ─────────────────────────────────────────────────────────────────
     log.info("═" * 60)
-    log.info("  RÉSUMÉ FINAL")
-    log.info(f"  Période    : {START} → {END} ({len(nat['deletions'])} mois)")
+    log.info("  FINAL SUMMARY")
+    log.info(f"  Period     : {START} → {END} ({len(nat['deletions'])} months)")
     if not nat["deletions"].empty:
-        log.info(f"  Suppressions totales : {nat['deletions']['deletions'].sum()}")
+        log.info(f"  Total deletions      : {nat['deletions']['deletions'].sum()}")
     if not nat["ruins"].empty:
-        log.info(f"  Ruins max/mois       : {nat['ruins']['n_ruines'].max()}")
-    log.info(f"  Événements ACLED     : {len(gdf_acled)}")
-    log.info(f"  Fichiers → {OUTPUT_DIR}/")
+        log.info(f"  Ruins max/month      : {nat['ruins']['n_ruines'].max()}")
+    log.info(f"  ACLED events         : {len(gdf_acled)}")
+    log.info(f"  Files → {OUTPUT_DIR}/")
     log.info("═" * 60)
 
 

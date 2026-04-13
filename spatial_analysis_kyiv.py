@@ -1,31 +1,31 @@
 ﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║         OSM À L'ÉPREUVE DE LA GUERRE — Kiev                         ║
-║              Zone : Oblast de Kiev (~80 km autour de la ville)      ║
-║              Période : Fév 2022 → Déc 2022                          ║
+║         OSM UNDER THE TEST OF WAR — Kyiv                            ║
+║              Area: Kyiv Oblast (~80 km around the city)             ║
+║              Period: Feb 2022 → Dec 2022                            ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet [anonymized] / [anonymized]                            ║
-║  Commanditaire : Raphaël Bres                                       ║
+║  Project [anonymized] / [anonymized]                           ║
+║  Sponsor: Raphaël Bres                                              ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-Contexte Kiev vs Donetsk :
-  - Kiev n'a jamais été occupée (retrait russe fin mars 2022)
-  - Bombardements intenses mais zone libérée rapidement
-  - Signal OSM attendu : pic de contributions humanitaires,
-    pas de silence cartographique lié à l'occupation
-  - Permet une COMPARAISON avec Donetsk (zone occupée)
+Kyiv vs Donetsk context:
+  - Kyiv was never occupied (Russian withdrawal end of March 2022)
+  - Intense bombardments but area liberated quickly
+  - Expected OSM signal: peak of humanitarian contributions,
+    no cartographic silence due to occupation
+  - Allows COMPARISON with Donetsk (occupied zone)
 
-Signaux analysés :
-  1. Bâtiments SUPPRIMÉS  (contributionType=deletion)
-  2. Bâtiments DÉTRUITS   (tags ruins/destroyed)
-  3. ACTIVITÉ GLOBALE     (toutes contributions bâtiments)
+Signals analyzed:
+  1. DELETED buildings    (contributionType=deletion)
+  2. DESTROYED buildings  (ruins/destroyed tags)
+  3. GLOBAL ACTIVITY      (all building contributions)
 
-Croisements :
-  - Ligne de front ISW (siège de Kiev : fév–mars 2022)
-  - Événements ACLED dans la zone
+Cross-references:
+  - ISW front line (Kyiv siege: Feb–Mar 2022)
+  - ACLED events in the area
 
-Dépendances :
+Dependencies:
     pip install requests geopandas shapely matplotlib pandas numpy contextily
 """
 
@@ -47,7 +47,7 @@ try:
     HAS_CTX = True
 except ImportError:
     HAS_CTX = False
-    print("[INFO] contextily non disponible")
+    print("[INFO] contextily not available")
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
@@ -57,8 +57,8 @@ log = logging.getLogger(__name__)
 # CONFIGURATION
 # =============================================================================
 
-# ── Bbox Kiev : ville + oblast (~80 km autour) ────────────────────────────────
-# Couvre : Kiev, Bucha, Irpin, Borodyanka, Hostomel, Brovary
+# ── Kyiv bounding box: city + oblast (~80 km around) ─────────────────────────
+# Covers: Kyiv, Bucha, Irpin, Borodyanka, Hostomel, Brovary
 BBOX = "29.5,49.8,31.5,51.2"
 
 START = "2022-02-01"
@@ -78,17 +78,17 @@ DATA_DIR    = "data"
 CACHE_DIR   = os.path.join(DATA_DIR, "cache_ohsome")
 
 ACLED_WINDOW_DAYS = 7
-GRID_RES          = 0.15   # ~12 km — zone petite, résolution fine possible
-UTM_CRS           = "EPSG:32636"   # UTM 36N — adapté pour Kiev (~30°E)
+GRID_RES          = 0.15   # ~12 km — small area, fine resolution possible
+UTM_CRS           = "EPSG:32636"   # UTM 36N — suitable for Kyiv (~30°E)
 
 ISW_BASE = ("https://gist.githubusercontent.com/Viglino/"
             "675e3551fb4e79d03ac0cdb1bed2677e/raw")
 
-# Phases historiques spécifiques à Kiev
+# Historical phases specific to Kyiv
 PHASES_KIEV = [
-    ("2022-02-24", "2022-03-30", "#E74C3C", "Siège\nde Kiev"),
-    ("2022-03-30", "2022-06-01", "#F39C12", "Retrait russe\n+ reconstruction"),
-    ("2022-06-01", "2022-12-31", "#27AE60", "Zone libérée\n(bombardements lointains)"),
+    ("2022-02-24", "2022-03-30", "#E74C3C", "Kyiv\nsiege"),
+    ("2022-03-30", "2022-06-01", "#F39C12", "Russian withdrawal\n+ reconstruction"),
+    ("2022-06-01", "2022-12-31", "#27AE60", "Liberated zone\n(distant shelling)"),
 ]
 
 
@@ -114,7 +114,7 @@ def _ohsome(endpoint: str, params: dict) -> dict:
                 return r.json()
             log.warning(f"ohsome {r.status_code} ({attempt+1}/3): {r.text[:120]}")
         except requests.RequestException as e:
-            log.warning(f"ohsome réseau ({attempt+1}/3): {e}")
+            log.warning(f"ohsome network error ({attempt+1}/3): {e}")
         time.sleep(5)
     return {}
 
@@ -134,11 +134,11 @@ def _save(name: str, data):
 
 
 # =============================================================================
-# 1. LIGNE DE FRONT ISW
+# 1. ISW FRONT LINE
 # =============================================================================
 
 def fetch_frontline(target_date: str) -> gpd.GeoDataFrame:
-    """Snapshot ISW le plus proche de target_date (fallback 7 jours)."""
+    """ISW snapshot closest to target_date (7-day fallback)."""
     os.makedirs(DATA_DIR, exist_ok=True)
     for delta in range(8):
         d     = (pd.Timestamp(target_date) - timedelta(days=delta)).strftime("%Y-%m-%d")
@@ -147,7 +147,7 @@ def fetch_frontline(target_date: str) -> gpd.GeoDataFrame:
             try:
                 gdf = gpd.read_file(cache)
                 if not gdf.empty:
-                    log.info(f"ISW {target_date} → cache ({d})")
+                    log.info(f"ISW {target_date} → cached ({d})")
                     return _norm_isw(gdf)
             except Exception:
                 pass
@@ -157,12 +157,12 @@ def fetch_frontline(target_date: str) -> gpd.GeoDataFrame:
                 open(cache, "wb").write(r.content)
                 gdf = gpd.read_file(cache)
                 if not gdf.empty:
-                    log.info(f"ISW {target_date} → téléchargé ({d})")
+                    log.info(f"ISW {target_date} → downloaded ({d})")
                     return _norm_isw(gdf)
         except requests.RequestException:
             pass
         time.sleep(0.3)
-    log.warning(f"ISW {target_date} introuvable")
+    log.warning(f"ISW {target_date} not found")
     return gpd.GeoDataFrame()
 
 
@@ -176,10 +176,10 @@ def _norm_isw(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 def load_frontlines_kiev() -> dict:
     """
-    Charge les snapshots ISW mensuels pour 2022.
-    Particulièrement important pour février-mars 2022 (siège de Kiev).
+    Loads monthly ISW snapshots for 2022.
+    Particularly important for February–March 2022 (Kyiv siege).
     """
-    # Dates clés pour Kiev — on veut une granularité fine pendant le siège
+    # Key dates for Kyiv — fine granularity needed during the siege
     monthly = [
         "2022-02-28", "2022-03-15", "2022-03-31",
         "2022-04-30", "2022-05-31", "2022-06-30",
@@ -192,12 +192,12 @@ def load_frontlines_kiev() -> dict:
         if gdf is None or gdf.empty:
             continue
         try:
-            # Filtrer sur la zone Kiev pour alléger
+            # Filter to Kyiv area to reduce load
             lon_min, lat_min, lon_max, lat_max = map(float, BBOX.split(","))
             gdf_clip = gdf.cx[lon_min:lon_max, lat_min:lat_max]
             if gdf_clip.empty:
-                # Pas de zone occupée près de Kiev à cette date → zone libre
-                log.info(f"  {target} → aucune zone occupée près de Kiev (zone libre)")
+                # No occupied zone near Kyiv at this date → free zone
+                log.info(f"  {target} → no occupied zone near Kyiv (free zone)")
                 frontlines[target] = gpd.GeoDataFrame()
                 continue
             merged = gpd.GeoDataFrame(
@@ -206,7 +206,7 @@ def load_frontlines_kiev() -> dict:
                 crs=4326
             )
             frontlines[target] = merged
-            log.info(f"  {target} → zone occupée près de Kiev détectée")
+            log.info(f"  {target} → occupied zone near Kyiv detected")
         except Exception as e:
             log.warning(f"  {target} : {e}")
             frontlines[target] = gpd.GeoDataFrame()
@@ -214,15 +214,15 @@ def load_frontlines_kiev() -> dict:
 
 
 # =============================================================================
-# 2. ACLED — filtré sur Kiev
+# 2. ACLED — filtered on Kyiv
 # =============================================================================
 
 def load_acled() -> gpd.GeoDataFrame:
     if not os.path.exists(ACLED_FILE):
-        log.warning(f"{ACLED_FILE} introuvable")
+        log.warning(f"{ACLED_FILE} not found")
         return gpd.GeoDataFrame()
 
-    log.info(f"Chargement ACLED : {ACLED_FILE}")
+    log.info(f"Loading ACLED: {ACLED_FILE}")
     gdf = gpd.read_file(ACLED_FILE)
     gdf.columns = [c.lower() for c in gdf.columns]
     if gdf.crs is None:
@@ -241,7 +241,7 @@ def load_acled() -> gpd.GeoDataFrame:
             gdf = gdf[gdf[col].str.contains("Ukraine", case=False, na=False)]
             break
 
-    # Filtre bbox Kiev
+    # Kyiv bbox filter
     lon_min, lat_min, lon_max, lat_max = map(float, BBOX.split(","))
     gdf = gdf.cx[lon_min:lon_max, lat_min:lat_max]
 
@@ -249,21 +249,21 @@ def load_acled() -> gpd.GeoDataFrame:
         gdf = gdf[(gdf["date"] >= pd.Timestamp(START)) &
                   (gdf["date"] <= pd.Timestamp(END))]
 
-    log.info(f"ACLED Kiev : {len(gdf)} événements")
+    log.info(f"ACLED Kyiv: {len(gdf)} events")
     return gdf.reset_index(drop=True)
 
 
 # =============================================================================
-# 3. OHSOME — requêtes pour Kiev
+# 3. OHSOME — queries for Kyiv
 # =============================================================================
 
 def fetch_deletions() -> pd.DataFrame:
     cached = _load("deletions")
     if cached:
-        log.info("Suppressions Kiev → cache")
+        log.info("Kyiv deletions → cache")
         rows = cached
     else:
-        log.info("Requête ohsome — suppressions Kiev…")
+        log.info("Ohsome query — Kyiv deletions…")
         data = _ohsome("contributions/count", {
             "bboxes": BBOX, "time": f"{START}/{END}/{INTERVAL}",
             "filter": FILTER_BUILDINGS,
@@ -277,17 +277,17 @@ def fetch_deletions() -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df["period"]    = _strip_tz(pd.to_datetime(df["fromTimestamp"], errors="coerce", utc=True))
     df["deletions"] = df["value"].fillna(0).astype(int)
-    log.info(f"Suppressions : {df['deletions'].sum()} sur {len(df)} mois")
+    log.info(f"Deletions: {df['deletions'].sum()} over {len(df)} months")
     return df[["period", "deletions"]]
 
 
 def fetch_ruins() -> pd.DataFrame:
     cached = _load("ruins")
     if cached:
-        log.info("Ruins Kiev → cache")
+        log.info("Kyiv ruins → cache")
         rows = cached
     else:
-        log.info("Requête ohsome — tags ruins Kiev…")
+        log.info("Ohsome query — Kyiv ruins tags…")
         data = _ohsome("elements/count", {
             "bboxes": BBOX, "time": f"{START}/{END}/{INTERVAL}",
             "filter": FILTER_DESTROYED, "timeout": "600"
@@ -300,17 +300,17 @@ def fetch_ruins() -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df["period"]   = _strip_tz(pd.to_datetime(df["timestamp"], errors="coerce", utc=True))
     df["n_ruines"] = df["value"].fillna(0).astype(int)
-    log.info(f"Ruins max/mois : {df['n_ruines'].max()}")
+    log.info(f"Ruins max/month: {df['n_ruines'].max()}")
     return df[["period", "n_ruines"]]
 
 
 def fetch_activity() -> pd.DataFrame:
     cached = _load("activity")
     if cached:
-        log.info("Activité Kiev → cache")
+        log.info("Kyiv activity → cache")
         rows = cached
     else:
-        log.info("Requête ohsome — activité Kiev…")
+        log.info("Ohsome query — Kyiv activity…")
         data = _ohsome("contributions/count", {
             "bboxes": BBOX, "time": f"{START}/{END}/{INTERVAL}",
             "filter": FILTER_BUILDINGS, "timeout": "600"
@@ -328,24 +328,24 @@ def fetch_activity() -> pd.DataFrame:
 
 def fetch_osm_points_precise() -> gpd.GeoDataFrame:
     """
-    Récupère les coordonnées PRÉCISES de chaque modification OSM via
-    contributions/centroid — un point par contribution, pas un centroïde
-    de cellule de grille.
+    Retrieves PRECISE coordinates of each OSM modification via
+    contributions/centroid — one point per contribution, not a grid
+    cell centroid.
 
-    C'est l'endpoint le plus léger pour avoir des coordonnées exactes :
-    ohsome renvoie un point par contribution sans la géométrie complète.
+    This is the lightest endpoint for exact coordinates:
+    ohsome returns one point per contribution without the full geometry.
 
-    Filtre : bâtiments uniquement, zone Kiev, fév–avr 2022
-    (siège de Kiev — période demandée par le commanditaire)
+    Filter: buildings only, Kyiv area, Feb–Apr 2022
+    (Kyiv siege — period requested by the sponsor)
 
-    Retourne un GeoDataFrame avec colonnes :
-      geometry    : Point (coordonnées précises de la contribution)
-      timestamp   : date de la contribution
-      osm_type    : type de contribution (creation, modification, deletion)
+    Returns a GeoDataFrame with columns:
+      geometry    : Point (precise coordinates of the contribution)
+      timestamp   : date of the contribution
+      osm_type    : contribution type (creation, modification, deletion)
     """
-    log.info("Requête contributions/centroid — coordonnées précises OSM Kiev…")
+    log.info("contributions/centroid query — precise OSM coordinates Kyiv…")
 
-    # Période restreinte au siège de Kiev pour limiter le volume
+    # Period restricted to the Kyiv siege to limit volume
     SIEGE_START = "2022-02-24"
     SIEGE_END   = "2022-04-30"
 
@@ -362,16 +362,16 @@ def fetch_osm_points_precise() -> gpd.GeoDataFrame:
         r = requests.post(URL, data=params, timeout=320)
         if r.status_code != 200:
             log.warning(f"contributions/centroid HTTP {r.status_code}: {r.text[:200]}")
-            log.info("Fallback sur contributions/centroid par type…")
+            log.info("Fallback to contributions/centroid by type…")
             return _fetch_centroid_by_type(SIEGE_START, SIEGE_END)
 
         data     = r.json()
         features = data.get("features", [])
         if not features:
-            log.warning("Aucune contribution reçue.")
+            log.warning("No contributions received.")
             return gpd.GeoDataFrame()
 
-        log.info(f"{len(features)} contributions précises reçues")
+        log.info(f"{len(features)} precise contributions received")
         pts, timestamps, contrib_types = [], [], []
         for f in features:
             try:
@@ -388,23 +388,23 @@ def fetch_osm_points_precise() -> gpd.GeoDataFrame:
         gdf = gpd.GeoDataFrame({
             "timestamp":   timestamps,
             "osm_type":    contrib_types,
-            "deleted_at":  timestamps   # alias pour compatibilité
+            "deleted_at":  timestamps   # alias for compatibility
         }, geometry=pts, crs=4326)
 
-        log.info(f"Points OSM précis : {len(gdf)} contributions géolocalisées")
+        log.info(f"Precise OSM points: {len(gdf)} geolocated contributions")
         return gdf
 
     except (requests.RequestException, MemoryError) as e:
-        log.warning(f"contributions/centroid erreur : {e}")
+        log.warning(f"contributions/centroid error: {e}")
         return _fetch_centroid_by_type(SIEGE_START, SIEGE_END)
 
 
 def _fetch_centroid_by_type(start: str, end: str) -> gpd.GeoDataFrame:
     """
-    Fallback : récupère les centroïdes par type de contribution
-    (deletion, creation, modification) séparément pour réduire la charge.
+    Fallback: retrieves centroids by contribution type
+    (deletion, creation, modification) separately to reduce load.
     """
-    log.info("Fallback : centroïdes par type de contribution…")
+    log.info("Fallback: centroids by contribution type…")
     URL    = "https://api.ohsome.org/v1/contributions/centroid"
     frames = []
 
@@ -414,7 +414,7 @@ def _fetch_centroid_by_type(start: str, end: str) -> gpd.GeoDataFrame:
 
         if os.path.exists(cache_f):
             features = json.load(open(cache_f))
-            log.info(f"  {contrib_type} → cache ({len(features)} features)")
+            log.info(f"  {contrib_type} → cached ({len(features)} features)")
         else:
             params = {
                 "bboxes":           BBOX,
@@ -430,7 +430,7 @@ def _fetch_centroid_by_type(start: str, end: str) -> gpd.GeoDataFrame:
                 json.dump(features, open(cache_f, "w"))
                 log.info(f"  {contrib_type} → {len(features)} features")
             except Exception as e:
-                log.warning(f"  {contrib_type} erreur : {e}")
+                log.warning(f"  {contrib_type} error: {e}")
                 features = []
         # ─────────────────────────────────────────────
 # EXPORT GEOJSON (AJOUT SIMPLE)
@@ -453,21 +453,21 @@ def _fetch_centroid_by_type(start: str, end: str) -> gpd.GeoDataFrame:
                 continue
 
     if not frames:
-        log.warning("Aucune contribution récupérée en fallback.")
+        log.warning("No contributions retrieved in fallback.")
         return gpd.GeoDataFrame()
 
     gdf = gpd.GeoDataFrame(frames, crs=4326)
-    log.info(f"Fallback : {len(gdf)} contributions géolocalisées au total")
+    log.info(f"Fallback: {len(gdf)} total geolocated contributions")
     return gdf
 
 
 def fetch_deletions_geom() -> gpd.GeoDataFrame:
     """
-    Pour la carte de chaleur : suppressions géolocalisées via grille 0.15°.
-    Utilisé uniquement pour fig3 (carte). La corrélation précise
-    utilise fetch_osm_points_precise().
+    For the heat map: geolocated deletions via 0.15° grid.
+    Used only for fig3 (map). Precise correlation
+    uses fetch_osm_points_precise().
     """
-    log.info("Grille suppressions 0.15° — Kiev (pour la carte)…")
+    log.info("Deletion grid 0.15° — Kyiv (for map)…")
     lon_min, lat_min, lon_max, lat_max = map(float, BBOX.split(","))
     lons = np.arange(lon_min, lon_max, GRID_RES)
     lats = np.arange(lat_min, lat_max, GRID_RES)
@@ -508,16 +508,16 @@ def fetch_deletions_geom() -> gpd.GeoDataFrame:
     if not records:
         return gpd.GeoDataFrame()
     gdf = gpd.GeoDataFrame(records, crs=4326)
-    log.info(f"Grille carte : {len(gdf)} cellules avec suppressions")
+    log.info(f"Map grid: {len(gdf)} cells with deletions")
     return gdf
 
 
 # =============================================================================
-# 4. CROISEMENT OSM × ACLED — corrélation SPATIO-TEMPORELLE
+# 4. OSM × ACLED — SPATIO-TEMPORAL CORRELATION
 # =============================================================================
 
-# Rayon spatial autour de chaque frappe ACLED (mètres)
-SPATIAL_BUFFER_M = 1000   # 1 km — ajustable
+# Spatial radius around each ACLED strike (meters)
+SPATIAL_BUFFER_M = 1000   # 1 km — adjustable
 
 def correlate_spatiotemporal(
     gdf_osm_pts: gpd.GeoDataFrame,
@@ -526,39 +526,39 @@ def correlate_spatiotemporal(
     buffer_m:    int = SPATIAL_BUFFER_M
 ) -> gpd.GeoDataFrame:
     """
-    Corrélation SPATIO-TEMPORELLE bombardements ACLED × modifications OSM.
+    SPATIO-TEMPORAL correlation of ACLED strikes × OSM modifications.
 
-    Pour chaque événement ACLED (frappe, bataille) :
-      1. Crée un buffer spatial de buffer_m mètres autour du point
-      2. Cherche les modifications OSM dans ce buffer
-         ET dans la fenêtre [date_ACLED, date_ACLED + window_days]
-      3. Considère la paire comme "corrélée" si au moins 1 modif OSM trouvée
+    For each ACLED event (strike, battle):
+      1. Creates a spatial buffer of buffer_m meters around the point
+      2. Searches for OSM modifications within this buffer
+         AND within the window [date_ACLED, date_ACLED + window_days]
+      3. Considers the pair "correlated" if at least 1 OSM modification found
 
-    Retourne un GeoDataFrame de paires corrélées avec colonnes :
-      geometry       : point de la frappe ACLED
-      date_acled     : date de la frappe
-      event_type     : type d'événement ACLED
-      n_osm_nearby   : nb de modifications OSM dans le buffer/fenêtre
-      delay_days_min : délai minimal (jours) entre frappe et première modif OSM
-      correlated     : True si au moins 1 modif OSM trouvée
+    Returns a GeoDataFrame of correlated pairs with columns:
+      geometry       : ACLED strike point
+      date_acled     : strike date
+      event_type     : ACLED event type
+      n_osm_nearby   : number of OSM modifications in the buffer/window
+      delay_days_min : minimum delay (days) between strike and first OSM modification
+      correlated     : True if at least 1 OSM modification found
 
-    Sauvegarde aussi un CSV de toutes les paires pour le rapport.
+    Also saves a CSV of all pairs for the report.
     """
     if gdf_acled.empty or gdf_osm_pts.empty:
-        log.warning("Données manquantes pour la corrélation spatio-temporelle.")
+        log.warning("Missing data for spatio-temporal correlation.")
         return gpd.GeoDataFrame()
 
-    log.info(f"Corrélation spatio-temporelle : {len(gdf_acled)} frappes × "
-             f"{len(gdf_osm_pts)} points OSM")
-    log.info(f"  Paramètres : buffer={buffer_m}m, fenêtre={window_days}j")
+    log.info(f"Spatio-temporal correlation: {len(gdf_acled)} strikes × "
+             f"{len(gdf_osm_pts)} OSM points")
+    log.info(f"  Parameters: buffer={buffer_m}m, window={window_days}d")
 
-    # Normalisation dates
+    # Date normalization
     acled_dates = _strip_tz(gdf_acled["date"])
     osm_dates   = _strip_tz(gdf_osm_pts["deleted_at"]) \
                   if "deleted_at" in gdf_osm_pts.columns \
                   else pd.Series([pd.NaT] * len(gdf_osm_pts))
 
-    # Projection métrique pour le buffer
+    # Metric projection for the buffer
     gdf_acled_proj   = gdf_acled.to_crs(UTM_CRS)
     gdf_osm_proj     = gdf_osm_pts.to_crs(UTM_CRS)
 
@@ -580,19 +580,19 @@ def correlate_spatiotemporal(
         if pd.isna(frappe_date):
             continue
 
-        # 1. Buffer spatial autour de la frappe
+        # 1. Spatial buffer around the strike
         buf = frappe_geom.buffer(buffer_m)
 
-        # 2. Filtrer OSM : dans le buffer spatial
+        # 2. Filter OSM: within the spatial buffer
         in_buf = gdf_osm_proj.geometry.within(buf)
 
-        # 3. Filtrer OSM : dans la fenêtre temporelle [date, date + 7j]
+        # 3. Filter OSM: within the time window [date, date + 7d]
         window_end   = frappe_date + timedelta(days=window_days)
         if osm_dates.notna().any():
             in_window = (osm_dates >= frappe_date) & (osm_dates <= window_end)
             mask      = in_buf & in_window.values
         else:
-            # Pas de date OSM disponible → filtre spatial seulement
+            # No OSM date available → spatial filter only
             mask = in_buf
 
         osm_nearby = gdf_osm_pts[mask]
@@ -601,7 +601,7 @@ def correlate_spatiotemporal(
         if correlated:
             n_correlated += 1
 
-        # Délai minimal entre frappe et première modif OSM
+        # Minimum delay between strike and first OSM edit
         delay_min = None
         if correlated and osm_dates.notna().any():
             dates_nearby = osm_dates[mask]
@@ -621,7 +621,7 @@ def correlate_spatiotemporal(
             "correlated":     correlated,
         })
 
-    log.info(f"  Frappes corrélées : {n_correlated}/{len(gdf_acled)} "
+    log.info(f"  Correlated strikes: {n_correlated}/{len(gdf_acled)} "
              f"({n_correlated/len(gdf_acled)*100:.1f}%)")
 
     if not results:
@@ -629,18 +629,18 @@ def correlate_spatiotemporal(
 
     gdf_result = gpd.GeoDataFrame(results, crs=4326)
 
-    # Sauvegarde CSV des paires pour le rapport
+    # Save CSV of pairs for the report
     csv_path = os.path.join(OUTPUT_DIR, "paires_acled_osm_spatio_temporel.csv")
     gdf_result.drop(columns=["geometry"]).to_csv(csv_path, index=False)
-    log.info(f"✔ Paires sauvegardées : {csv_path}")
+    log.info(f"✔ Pairs saved: {csv_path}")
 
     return gdf_result
 
 
 def correlate(df_del: pd.DataFrame, gdf_acled: gpd.GeoDataFrame) -> pd.DataFrame:
     """
-    Corrélation temporelle agrégée par mois (pour les graphiques de tendance).
-    Complète correlate_spatiotemporal() qui travaille frappe par frappe.
+    Monthly aggregated temporal correlation (for trend charts).
+    Complements correlate_spatiotemporal() which works strike by strike.
     """
     if gdf_acled.empty or "date" not in gdf_acled.columns or df_del.empty:
         return df_del
@@ -665,11 +665,11 @@ def correlate(df_del: pd.DataFrame, gdf_acled: gpd.GeoDataFrame) -> pd.DataFrame
 
 
 # =============================================================================
-# 5. VISUALISATIONS
+# 5. VISUALIZATIONS
 # =============================================================================
 
 INV = pd.Timestamp("2022-02-24")
-RETRAIT = pd.Timestamp("2022-03-30")   # retrait russe de la région de Kiev
+RETRAIT = pd.Timestamp("2022-03-30")   # Russian withdrawal from the Kyiv region
 
 C = {
     "del":   "#E74C3C",
@@ -686,14 +686,14 @@ def _fmt(ax, interval=1):
     ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
     plt.setp(ax.xaxis.get_majorticklabels(), rotation=40, ha="right")
     ax.axvline(INV, color="red", lw=1.8, ls="--", alpha=0.8,
-               label="Invasion 24 fév.")
+               label="Invasion Feb. 24")
     ax.axvline(RETRAIT, color="green", lw=1.5, ls="--", alpha=0.8,
-               label="Retrait russe ~30 mars")
+               label="Russian withdrawal ~Mar. 30")
     ax.grid(ls="--", alpha=0.3)
 
 
 def _add_phases(ax):
-    """Ajoute les zones de phases de guerre spécifiques à Kiev."""
+    """Adds war phase zones specific to Kyiv."""
     ylim = ax.get_ylim()
     for p_start, p_end, color, label in PHASES_KIEV:
         ax.axvspan(pd.Timestamp(p_start), pd.Timestamp(p_end),
@@ -711,19 +711,19 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
              gdf_acled, gdf_grid, frontlines):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # ── Fig 1 : 3 signaux OSM Kiev ────────────────────────────────────────────
+    # ── Fig 1: 3 OSM signals Kyiv ─────────────────────────────────────────────
     fig, axes = plt.subplots(3, 1, figsize=(14, 13), sharex=True)
     fig.suptitle(
-        "Signaux OSM — Kiev & Oblast | Fév–Déc 2022\n"
-        "(siège fév–mars 2022, retrait russe fin mars, zone libérée ensuite)",
+        "OSM Signals — Kyiv & Oblast | Feb–Dec 2022\n"
+        "(siege Feb–Mar 2022, Russian withdrawal end of Mar, liberated zone afterwards)",
         fontsize=14, fontweight="bold", y=0.99
     )
 
     if not df_act.empty:
         axes[0].bar(df_act["period"], df_act["activity"],
                     color=C["act"], alpha=0.8, width=22)
-        axes[0].set_ylabel("Contributions / mois")
-        axes[0].set_title("① Activité globale OSM (bâtiments)", fontsize=11)
+        axes[0].set_ylabel("Contributions / month")
+        axes[0].set_title("① Global OSM activity (buildings)", fontsize=11)
         axes[0].axvline(INV, color="red", lw=1.8, ls="--", alpha=0.8)
         axes[0].axvline(RETRAIT, color="green", lw=1.5, ls="--", alpha=0.8)
         axes[0].grid(axis="y", ls="--", alpha=0.3)
@@ -735,14 +735,14 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
         if len(df_del) > 0:
             pk = df_del.loc[df_del["deletions"].idxmax()]
             axes[1].annotate(
-                f"Pic : {int(pk['deletions'])} suppressions",
+                f"Peak: {int(pk['deletions'])} deletions",
                 xy=(pk["period"], pk["deletions"]),
                 xytext=(pk["period"], pk["deletions"] * 1.12),
                 arrowprops=dict(arrowstyle="->", lw=1), fontsize=9, ha="center",
                 bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8)
             )
-        axes[1].set_ylabel("Suppressions / mois")
-        axes[1].set_title("② Bâtiments supprimés (signal de destruction physique)", fontsize=11)
+        axes[1].set_ylabel("Deletions / month")
+        axes[1].set_title("② Deleted buildings (physical destruction signal)", fontsize=11)
         axes[1].axvline(INV, color="red", lw=1.8, ls="--", alpha=0.8)
         axes[1].axvline(RETRAIT, color="green", lw=1.5, ls="--", alpha=0.8)
         axes[1].grid(axis="y", ls="--", alpha=0.3)
@@ -753,8 +753,8 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
                      color=C["ruins"], marker="o", lw=2.5, ms=7)
         axes[2].fill_between(df_ruins["period"], df_ruins["n_ruines"],
                               alpha=0.18, color=C["ruins"])
-        axes[2].set_ylabel("Nbre de bâtiments")
-        axes[2].set_title("③ Bâtiments tagués ruins/destroyed", fontsize=11)
+        axes[2].set_ylabel("Number of buildings")
+        axes[2].set_title("③ Buildings tagged ruins/destroyed", fontsize=11)
         axes[2].axvline(INV, color="red", lw=1.8, ls="--", alpha=0.8)
         axes[2].axvline(RETRAIT, color="green", lw=1.5, ls="--", alpha=0.8)
         axes[2].grid(axis="y", ls="--", alpha=0.3)
@@ -764,23 +764,23 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
     plt.tight_layout(rect=[0, 0, 1, 0.97])
     fig.savefig(os.path.join(OUTPUT_DIR, "fig1_signaux_kiev.png"),
                 dpi=150, bbox_inches="tight")
-    log.info("✔ Fig 1 — signaux OSM Kiev"); plt.close(fig)
+    log.info("✔ Fig 1 — Kyiv OSM signals"); plt.close(fig)
 
-    # ── Fig 2 : OSM vs ACLED Kiev ─────────────────────────────────────────────
+    # ── Fig 2: OSM vs ACLED Kyiv ──────────────────────────────────────────────
     if not df_corr.empty and "n_acled_events" in df_corr.columns:
         fig, ax1 = plt.subplots(figsize=(14, 6))
         ax2 = ax1.twinx()
         ax1.bar(df_corr["period"], df_corr["deletions"],
-                color=C["del"], alpha=0.7, width=18, label="Suppressions OSM")
+                color=C["del"], alpha=0.7, width=18, label="OSM deletions")
         ax2.plot(df_corr["period"], df_corr["n_acled_events"],
                  color=C["acled"], marker="D", lw=2.2, ms=8,
-                 label=f"Événements ACLED (J-{ACLED_WINDOW_DAYS})")
+                 label=f"ACLED events (D-{ACLED_WINDOW_DAYS})")
         ax2.fill_between(df_corr["period"], df_corr["n_acled_events"],
                          alpha=0.1, color=C["acled"])
-        ax1.set_ylabel("Suppressions OSM / mois", color=C["del"], fontsize=11)
-        ax2.set_ylabel("Événements ACLED", color=C["acled"], fontsize=11)
+        ax1.set_ylabel("OSM deletions / month", color=C["del"], fontsize=11)
+        ax2.set_ylabel("ACLED events", color=C["acled"], fontsize=11)
         ax1.set_title(
-            "Suppressions OSM vs combats ACLED — Kiev, Fév–Déc 2022",
+            "OSM deletions vs ACLED conflicts — Kyiv, Feb–Dec 2022",
             fontsize=13, fontweight="bold"
         )
         if len(df_corr) > 2:
@@ -798,19 +798,19 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
         plt.tight_layout()
         fig.savefig(os.path.join(OUTPUT_DIR, "fig2_osm_vs_acled_kiev.png"),
                     dpi=150, bbox_inches="tight")
-        log.info("✔ Fig 2 — OSM vs ACLED Kiev"); plt.close(fig)
+        log.info("✔ Fig 2 — OSM vs ACLED Kyiv"); plt.close(fig)
 
-    # ── Fig 3 : Carte suppressions Kiev ───────────────────────────────────────
+    # ── Fig 3: Kyiv deletion map ───────────────────────────────────────────────
     fig, ax = plt.subplots(figsize=(12, 9))
     lon_min, lat_min, lon_max, lat_max = map(float, BBOX.split(","))
     ax.set_xlim(lon_min, lon_max); ax.set_ylim(lat_min, lat_max)
 
-    # Ligne de front début mars (siège)
+    # Front line early March (siege)
     front_siege = frontlines.get("2022-03-15", frontlines.get("2022-03-31"))
     if front_siege is not None and not front_siege.empty:
         front_siege.plot(ax=ax, color=C["front"], alpha=0.15, zorder=2)
         front_siege.boundary.plot(ax=ax, color=C["front"], lw=2,
-                                   label="Zone occupée mi-mars 2022 (ISW)", zorder=3)
+                                   label="Occupied zone mid-Mar 2022 (ISW)", zorder=3)
 
     if not gdf_grid.empty:
         vmax = max(gdf_grid["n_deletions"].quantile(0.97), 1)
@@ -825,7 +825,7 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
                      cmap="YlOrRd", alpha=0.75,
                      norm=Normalize(vmin=0, vmax=vmax),
                      legend=True,
-                     legend_kwds={"label": "Suppressions OSM / cellule (~12 km)",
+                     legend_kwds={"label": "OSM deletions / cell (~12 km)",
                                   "shrink": 0.55},
                      zorder=4)
 
@@ -836,18 +836,18 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
             pd.to_numeric(gdf_acled[fatal_col], errors="coerce").fillna(1) * 1.2,
             2, 30) if fatal_col else 5)
         gdf_acled.plot(ax=ax, color=C["acled"], markersize=sizes,
-                       alpha=0.5, label="Événements ACLED", zorder=5)
+                       alpha=0.5, label="ACLED events", zorder=5)
 
     if HAS_CTX:
         try:
             cx.add_basemap(ax, crs="EPSG:4326",
                            source=cx.providers.CartoDB.Positron, zoom=10)
         except Exception as e:
-            log.warning(f"Fond de carte : {e}")
+            log.warning(f"Basemap: {e}")
 
     ax.set_title(
-        "Carte des destructions OSM — Kiev & Oblast, Fév–Déc 2022\n"
-        "Grille suppressions  +  ACLED  +  Front ISW (mi-mars 2022)",
+        "OSM destruction map — Kyiv & Oblast, Feb–Dec 2022\n"
+        "Deletion grid  +  ACLED  +  ISW front line (mid-Mar 2022)",
         fontsize=12, fontweight="bold"
     )
     ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
@@ -855,20 +855,20 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
     plt.tight_layout()
     fig.savefig(os.path.join(OUTPUT_DIR, "fig3_carte_kiev.png"),
                 dpi=150, bbox_inches="tight")
-    log.info("✔ Fig 3 — carte Kiev"); plt.close(fig)
+    log.info("✔ Fig 3 — Kyiv map"); plt.close(fig)
 
-    # ── Fig 4 : Types d'événements ACLED Kiev ─────────────────────────────────
+    # ── Fig 4: ACLED event types Kyiv ─────────────────────────────────────────
     type_col = next((c for c in gdf_acled.columns
                      if "event" in c and "type" in c), None) if not gdf_acled.empty else None
     if type_col:
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-        fig.suptitle("Analyse ACLED — Kiev & Oblast, Fév–Déc 2022",
+        fig.suptitle("ACLED Analysis — Kyiv & Oblast, Feb–Dec 2022",
                      fontsize=13, fontweight="bold")
         counts = gdf_acled[type_col].value_counts().head(8)
         counts.plot(kind="barh", ax=axes[0],
                     color=plt.cm.Set2(np.linspace(0, 1, len(counts))),
                     edgecolor="white")
-        axes[0].set_title("Types d'événements"); axes[0].set_xlabel("Nombre")
+        axes[0].set_title("Event types"); axes[0].set_xlabel("Count")
         axes[0].invert_yaxis(); axes[0].grid(axis="x", ls="--", alpha=0.4)
 
         if "date" in gdf_acled.columns:
@@ -880,8 +880,8 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
                 mo["date"] = mo["date"].dt.to_timestamp()
                 axes[1].plot(mo["date"], mo["n"], marker="o", lw=1.8,
                              ms=5, label=typ[:25], color=col, alpha=0.85)
-            axes[1].set_title("Évolution mensuelle (top 4)")
-            axes[1].set_ylabel("Nb d'événements")
+            axes[1].set_title("Monthly trend (top 4)")
+            axes[1].set_ylabel("Number of events")
             axes[1].axvline(INV, color="red", lw=1.5, ls="--", alpha=0.7)
             axes[1].axvline(RETRAIT, color="green", lw=1.5, ls="--", alpha=0.7)
             axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
@@ -891,9 +891,9 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
         plt.tight_layout()
         fig.savefig(os.path.join(OUTPUT_DIR, "fig4_acled_types_kiev.png"),
                     dpi=150, bbox_inches="tight")
-        log.info("✔ Fig 4 — types ACLED Kiev"); plt.close(fig)
+        log.info("✔ Fig 4 — Kyiv ACLED types"); plt.close(fig)
 
-    # ── Fig 5 : Synthèse triple — OSM + ACLED + phases Kiev ──────────────────
+    # ── Fig 5: Triple synthesis — OSM + ACLED + Kyiv phases ──────────────────
     if not df_del.empty and not df_act.empty:
         fig, ax1 = plt.subplots(figsize=(15, 6))
         ax2 = ax1.twinx()
@@ -901,9 +901,9 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
         ax3.spines["right"].set_position(("outward", 65))
 
         ax1.bar(df_act["period"], df_act["activity"],
-                color=C["gray"], alpha=0.4, width=22, label="Activité OSM totale")
+                color=C["gray"], alpha=0.4, width=22, label="Total OSM activity")
         ax1.bar(df_del["period"], df_del["deletions"],
-                color=C["del"], alpha=0.85, width=15, label="Suppressions OSM")
+                color=C["del"], alpha=0.85, width=15, label="OSM deletions")
 
         if not df_ruins.empty:
             ax2.plot(df_ruins["period"], df_ruins["n_ruines"],
@@ -914,20 +914,20 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
             mo_acled = df_corr[["period", "n_acled_events"]].copy()
             ax3.plot(mo_acled["period"], mo_acled["n_acled_events"],
                      color=C["acled"], lw=2, ms=7, marker="D",
-                     ls="--", label="Événements ACLED")
+                     ls="--", label="ACLED events")
 
-        ax1.axvline(INV, color="red", lw=2, alpha=0.8, label="Invasion 24 fév.")
+        ax1.axvline(INV, color="red", lw=2, alpha=0.8, label="Invasion Feb. 24")
         ax1.axvline(RETRAIT, color="green", lw=1.8, alpha=0.8,
-                    label="Retrait russe ~30 mars")
+                    label="Russian withdrawal ~Mar. 30")
 
         _add_phases(ax1)
 
-        ax1.set_ylabel("Contributions / Suppressions OSM", fontsize=10)
-        ax2.set_ylabel("Bâtiments tags ruins", color=C["ruins"], fontsize=10)
-        ax3.set_ylabel("Événements ACLED / mois", color=C["acled"], fontsize=10)
+        ax1.set_ylabel("OSM Contributions / Deletions", fontsize=10)
+        ax2.set_ylabel("Buildings tagged ruins", color=C["ruins"], fontsize=10)
+        ax3.set_ylabel("ACLED events / month", color=C["acled"], fontsize=10)
         ax1.set_title(
-            "Synthèse : activité OSM, destructions et combats ACLED — Kiev\n"
-            "Fév–Déc 2022  (siège → retrait → zone libérée)",
+            "Synthesis: OSM activity, destructions and ACLED conflicts — Kyiv\n"
+            "Feb–Dec 2022  (siege → withdrawal → liberated zone)",
             fontsize=13, fontweight="bold"
         )
         _fmt(ax1)
@@ -939,25 +939,25 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
         plt.tight_layout()
         fig.savefig(os.path.join(OUTPUT_DIR, "fig5_synthese_kiev.png"),
                     dpi=150, bbox_inches="tight")
-        log.info("✔ Fig 5 — synthèse Kiev"); plt.close(fig)
+        log.info("✔ Fig 5 — Kyiv synthesis"); plt.close(fig)
 
-    log.info(f"Toutes les figures → '{OUTPUT_DIR}/'")
+    log.info(f"All figures → '{OUTPUT_DIR}/'")
 
 
 def plot_spatiotemporal(gdf_pairs: gpd.GeoDataFrame, gdf_acled: gpd.GeoDataFrame):
     """
-    Fig 6 — Carte et statistiques de la corrélation spatio-temporelle.
-    Montre quelles frappes ACLED ont été suivies d'une modification OSM
-    dans les 7 jours et dans un rayon de 1 km.
+    Fig 6 — Map and statistics of the spatio-temporal correlation.
+    Shows which ACLED strikes were followed by an OSM edit
+    within 7 days and within a 1 km radius.
     """
     if gdf_pairs.empty:
-        log.warning("Pas de paires spatio-temporelles à visualiser.")
+        log.warning("No spatio-temporal pairs to visualize.")
         return
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(16, 8))
 
-    # ── Gauche : carte des frappes corrélées vs non corrélées ────────────────
+    # ── Left: map of correlated vs non-correlated strikes ────────────────────
     ax = axes[0]
     lon_min, lat_min, lon_max, lat_max = map(float, BBOX.split(","))
     ax.set_xlim(lon_min, lon_max); ax.set_ylim(lat_min, lat_max)
@@ -967,11 +967,11 @@ def plot_spatiotemporal(gdf_pairs: gpd.GeoDataFrame, gdf_acled: gpd.GeoDataFrame
 
     if not non_corr.empty:
         non_corr.plot(ax=ax, color="#95A5A6", markersize=6,
-                      alpha=0.5, label="Frappe sans réponse OSM")
+                      alpha=0.5, label="Strike with no OSM response")
     if not corr.empty:
         sizes = np.clip(corr["n_osm_nearby"].values * 8, 10, 80)
         corr.plot(ax=ax, color="#E74C3C", markersize=sizes,
-                  alpha=0.8, label="Frappe avec réponse OSM (7j, 1km)", zorder=5)
+                  alpha=0.8, label="Strike with OSM response (7d, 1km)", zorder=5)
 
     if HAS_CTX:
         try:
@@ -984,16 +984,16 @@ def plot_spatiotemporal(gdf_pairs: gpd.GeoDataFrame, gdf_acled: gpd.GeoDataFrame
     n_corr     = corr.shape[0]
     pct        = n_corr / total * 100 if total > 0 else 0
     ax.set_title(
-        f"Corrélation spatio-temporelle ACLED × OSM — Kiev\n"
-        f"Fév–Avr 2022 | {n_corr}/{total} frappes ({pct:.0f}%) "
-        f"suivies d'une modif OSM\n(fenêtre : {ACLED_WINDOW_DAYS}j, rayon : {SPATIAL_BUFFER_M}m)",
+        f"Spatio-temporal correlation ACLED × OSM — Kyiv\n"
+        f"Feb–Apr 2022 | {n_corr}/{total} strikes ({pct:.0f}%) "
+        f"followed by an OSM edit\n(window: {ACLED_WINDOW_DAYS}d, radius: {SPATIAL_BUFFER_M}m)",
         fontsize=11, fontweight="bold"
     )
     ax.legend(fontsize=9, loc="upper left")
     ax.set_xlabel("Longitude"); ax.set_ylabel("Latitude")
     ax.grid(ls="--", alpha=0.25)
 
-    # ── Droite : distribution des délais ─────────────────────────────────────
+    # ── Right: delay distribution ─────────────────────────────────────────────
     ax2 = axes[1]
     delays = corr["delay_days_min"].dropna()
 
@@ -1001,14 +1001,14 @@ def plot_spatiotemporal(gdf_pairs: gpd.GeoDataFrame, gdf_acled: gpd.GeoDataFrame
         ax2.hist(delays, bins=range(0, ACLED_WINDOW_DAYS + 2),
                  color="#E74C3C", alpha=0.8, edgecolor="white", linewidth=0.5)
         ax2.axvline(delays.mean(), color="black", lw=2, ls="--",
-                    label=f"Délai moyen : {delays.mean():.1f}j")
+                    label=f"Mean delay: {delays.mean():.1f}d")
         ax2.axvline(delays.median(), color="#8E44AD", lw=2, ls="--",
-                    label=f"Délai médian : {delays.median():.1f}j")
-        ax2.set_xlabel("Délai entre frappe ACLED et modification OSM (jours)")
-        ax2.set_ylabel("Nombre de paires")
+                    label=f"Median delay: {delays.median():.1f}d")
+        ax2.set_xlabel("Delay between ACLED strike and OSM edit (days)")
+        ax2.set_ylabel("Number of pairs")
         ax2.set_title(
-            f"Distribution des délais\n"
-            f"(sur {len(delays)} paires corrélées)",
+            f"Delay distribution\n"
+            f"({len(delays)} correlated pairs)",
             fontsize=11, fontweight="bold"
         )
         ax2.legend(fontsize=10)
@@ -1016,14 +1016,14 @@ def plot_spatiotemporal(gdf_pairs: gpd.GeoDataFrame, gdf_acled: gpd.GeoDataFrame
         ax2.set_xticks(range(0, ACLED_WINDOW_DAYS + 1))
         ax2.grid(axis="y", ls="--", alpha=0.35)
     else:
-        ax2.text(0.5, 0.5, "Pas de données de délai disponibles\n"
-                 "(dates OSM non renseignées)",
+        ax2.text(0.5, 0.5, "No delay data available\n"
+                 "(OSM timestamps missing)",
                  ha="center", va="center", transform=ax2.transAxes, fontsize=11)
 
     plt.tight_layout()
     fig.savefig(os.path.join(OUTPUT_DIR, "fig6_correlation_spatiotemporelle.png"),
                 dpi=150, bbox_inches="tight")
-    log.info("✔ Fig 6 — corrélation spatio-temporelle"); plt.close(fig)
+    log.info("✔ Fig 6 — spatio-temporal correlation"); plt.close(fig)
 
 # =============================================================================
 # MAIN
@@ -1031,26 +1031,26 @@ def plot_spatiotemporal(gdf_pairs: gpd.GeoDataFrame, gdf_acled: gpd.GeoDataFrame
 
 def main():
     log.info("═" * 60)
-    log.info("  OSM À L'ÉPREUVE DE LA GUERRE — KIEV")
+    log.info("  OSM UNDER THE TEST OF WAR — KYIV")
     log.info(f"  Bbox    : {BBOX}")
-    log.info(f"  Période : {START} → {END}")
+    log.info(f"  Period  : {START} → {END}")
     log.info("═" * 60)
 
     for d in [OUTPUT_DIR, DATA_DIR, CACHE_DIR]:
         os.makedirs(d, exist_ok=True)
 
     # 1. Snapshots ISW Kiev ───────────────────────────────────────────────────
-    log.info("Chargement snapshots ISW pour Kiev…")
+    log.info("Loading ISW snapshots for Kyiv…")
     frontlines = load_frontlines_kiev()
 
-    # 2. ACLED filtré Kiev ────────────────────────────────────────────────────
+    # 2. ACLED filtered on Kyiv ───────────────────────────────────────────────
     gdf_acled = load_acled()
     if not gdf_acled.empty:
         gdf_acled.to_file(os.path.join(OUTPUT_DIR, "acled_kiev.geojson"),
                           driver="GeoJSON")
-        log.info(f"✔ acled_kiev.geojson ({len(gdf_acled)} événements)")
+        log.info(f"✔ acled_kiev.geojson ({len(gdf_acled)} events)")
 
-    # 3. Requêtes ohsome Kiev ─────────────────────────────────────────────────
+    # 3. Ohsome queries for Kyiv ──────────────────────────────────────────────
     df_del   = fetch_deletions()
     df_ruins = fetch_ruins()
     df_act   = fetch_activity()
@@ -1064,15 +1064,15 @@ def main():
             df.to_csv(os.path.join(OUTPUT_DIR, fname), index=False)
             log.info(f"✔ {fname}")
 
-    # 4a. Corrélation temporelle agrégée (graphiques de tendance)
+    # 4a. Aggregated temporal correlation (trend charts)
     df_corr = correlate(df_del, gdf_acled)
     if not df_corr.empty:
         df_corr.to_csv(os.path.join(OUTPUT_DIR, "correlation_kiev.csv"), index=False)
         log.info("✔ correlation_kiev.csv")
 
-    # 4b. Corrélation SPATIO-TEMPORELLE point à point (demande commanditaire)
-    # Coordonnées précises frappe ACLED × coordonnées précises modif OSM
-    log.info("Corrélation point à point (frappe × modif OSM dans 1km/7j)…")
+    # 4b. Point-to-point SPATIO-TEMPORAL correlation
+    # Precise ACLED strike coordinates × precise OSM edit coordinates
+    log.info("Point-to-point correlation (strike × OSM edit within 1km/7d)…")
     osm_source = gdf_osm_pts if not gdf_osm_pts.empty else gdf_grid
     if not osm_source.empty and not gdf_acled.empty:
         acled_siege = gdf_acled.copy()
@@ -1081,23 +1081,23 @@ def main():
                 (acled_siege["date"] >= pd.Timestamp("2022-02-24")) &
                 (acled_siege["date"] <= pd.Timestamp("2022-04-30"))
             ]
-        log.info(f"  ACLED siège de Kiev : {len(acled_siege)} événements")
+        log.info(f"  ACLED Kyiv siege: {len(acled_siege)} events")
         gdf_pairs = correlate_spatiotemporal(osm_source, acled_siege)
         if not gdf_pairs.empty:
             gdf_pairs.to_file(
                 os.path.join(OUTPUT_DIR, "paires_spatiotemporelles.geojson"),
                 driver="GeoJSON"
             )
-            log.info("✔ paires_spatiotemporelles.geojson (visualisable dans QGIS)")
+            log.info("✔ paires_spatiotemporelles.geojson (viewable in QGIS)")
             plot_spatiotemporal(gdf_pairs, acled_siege)
     else:
-        log.warning("Données insuffisantes pour la corrélation spatio-temporelle.")
+        log.warning("Insufficient data for spatio-temporal correlation.")
 
-    # 5. Points OSM PRÉCIS pour la corrélation point à point ─────────────────
-    gdf_osm_pts = gpd.GeoDataFrame()   # initialisé vide par défaut
+    # 5. PRECISE OSM points for point-to-point correlation ────────────────────
+    gdf_osm_pts = gpd.GeoDataFrame()   # initialized empty by default
     cache_pts = os.path.join(OUTPUT_DIR, "osm_points_precis_kiev.geojson")
     if os.path.exists(cache_pts):
-        log.info(f"Points précis → cache : {cache_pts}")
+        log.info(f"Precise points → cache: {cache_pts}")
         gdf_osm_pts = gpd.read_file(cache_pts)
         gdf_osm_pts["timestamp"] = pd.to_datetime(
             gdf_osm_pts.get("timestamp"), errors="coerce"
@@ -1109,11 +1109,11 @@ def main():
             gdf_osm_pts.to_file(cache_pts, driver="GeoJSON")
             log.info(f"✔ {cache_pts} ({len(gdf_osm_pts)} points)")
 
-    # 5b. Grille pour la carte de chaleur (fig3) ──────────────────────────────
-    gdf_grid = gpd.GeoDataFrame()   # initialisé vide par défaut
+    # 5b. Grid for the heat map (fig3) ────────────────────────────────────────
+    gdf_grid = gpd.GeoDataFrame()   # initialized empty by default
     cache_grid = os.path.join(OUTPUT_DIR, "grille_suppressions_kiev.geojson")
     if os.path.exists(cache_grid):
-        log.info(f"Grille → cache : {cache_grid}")
+        log.info(f"Grid → cache: {cache_grid}")
         gdf_grid = gpd.read_file(cache_grid)
     else:
         gdf_grid = fetch_deletions_geom()
@@ -1134,21 +1134,21 @@ def main():
 
                 gdf_export.to_file(OUTPUT, driver="GeoJSON")
 
-                print(f"\n✅ GeoJSON généré : {OUTPUT}")
-                print(f"Nombre de points : {len(gdf_export)}")
+                print(f"\n✅ GeoJSON generated: {OUTPUT}")
+                print(f"Number of points: {len(gdf_export)}")
 
         except Exception as e:
-            print(f"❌ Erreur export GeoJSON : {e}")
+            print(f"❌ GeoJSON export error: {e}")
 
         else:
-                print("❌ gdf vide → pas de fichier généré")
-    # Résumé ──────────────────────────────────────────────────────────────────
+                print("❌ gdf empty → no file generated")
+    # Summary ─────────────────────────────────────────────────────────────────
     log.info("═" * 60)
-    log.info("  RÉSUMÉ FINAL — Kiev")
-    log.info(f"  Suppressions totales : {df_del['deletions'].sum() if not df_del.empty else 'N/A'}")
-    log.info(f"  Ruins max/mois       : {df_ruins['n_ruines'].max() if not df_ruins.empty else 'N/A'}")
-    log.info(f"  Événements ACLED     : {len(gdf_acled)}")
-    log.info(f"  Fichiers → {OUTPUT_DIR}/")
+    log.info("  FINAL SUMMARY — Kyiv")
+    log.info(f"  Total deletions      : {df_del['deletions'].sum() if not df_del.empty else 'N/A'}")
+    log.info(f"  Ruins max/month      : {df_ruins['n_ruines'].max() if not df_ruins.empty else 'N/A'}")
+    log.info(f"  ACLED events         : {len(gdf_acled)}")
+    log.info(f"  Files → {OUTPUT_DIR}/")
     log.info("═" * 60)
 
 

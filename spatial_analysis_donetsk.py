@@ -1,26 +1,26 @@
 ﻿#!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════╗
-║         OSM À L'ÉPREUVE DE LA GUERRE — Analyse exploratoire         ║
-║              Zone : Frontière Donetsk (~50 km du front)             ║
-║              Période : Fév 2022 → Déc 2022                          ║
+║         OSM UNDER THE TEST OF WAR — Exploratory Analysis            ║
+║              Area: Donetsk border (~50 km from the front)           ║
+║              Period: Feb 2022 → Dec 2022                            ║
 ╠══════════════════════════════════════════════════════════════════════╣
-║  Projet [anonymized] / [anonymized]                            ║
-║  Commanditaire : Raphaël Bres                                       ║
+║  Project [anonymized] / [anonymized]                           ║
+║  Sponsor: Raphaël Bres                                              ║
 ╚══════════════════════════════════════════════════════════════════════╝
 
-Signaux analysés dans OSM :
-  1. Bâtiments SUPPRIMÉS (deleted=True dans l'historique ohsome)
-  2. Bâtiments MODIFIÉS avec tags de destruction
+OSM signals analyzed:
+  1. DELETED buildings (deleted=True in ohsome history)
+  2. MODIFIED buildings with destruction tags
      (building=ruins, ruins=*, destroyed:building=*, disused:building=*)
-  3. BAISSE D'ACTIVITÉ globale par cellule spatiale (grille H3-like)
+  3. GLOBAL ACTIVITY DROP per spatial cell (H3-like grid)
 
-Croisements :
-  - Ligne de front DeepStateMap (zone occupée au fil du temps)
-  - Événements ACLED (frappes aériennes, batailles) dans les 7 jours
-    précédant chaque suppression/modification OSM
+Cross-references:
+  - DeepStateMap front line (occupied zone over time)
+  - ACLED events (air strikes, battles) in the 7 days
+    preceding each OSM deletion/modification
 
-Dépendances :
+Dependencies:
     pip install requests geopandas shapely matplotlib pandas numpy tqdm contextily
 """
 
@@ -49,9 +49,9 @@ try:
     HAS_CTX = True
 except ImportError:
     HAS_CTX = False
-    print("[INFO] contextily non disponible — cartes sans fond de plan")
+    print("[INFO] contextily not available — maps without basemap")
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+# ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -63,19 +63,19 @@ log = logging.getLogger(__name__)
 # ░░  CONFIGURATION  ░░
 # =============================================================================
 
-# ── Bbox Donetsk : frontière ~50 km autour de la ligne de front 2022 ─────────
-# Couvre : Donetsk city, Mariupol, Volnovakha, Avdiivka, Sievierodonetsk,sebastopol
+# ── Donetsk bounding box: border ~50 km around the 2022 front line ───────────
+# Covers: Donetsk city, Mariupol, Volnovakha, Avdiivka, Sievierodonetsk, Sebastopol
 BBOX = "36.8,47.2,39.2,49.0"   # lon_min, lat_min, lon_max, lat_max
 
-# ── Période ───────────────────────────────────────────────────────────────────
+# ── Period ────────────────────────────────────────────────────────────────────
 START = "2022-02-01"
 END   = "2022-12-31"
 
-# ── Granularité temporelle pour les comptages agrégés ────────────────────────
-INTERVAL = "P1M"   # mensuel — raisonnable pour une bbox de cette taille
+# ── Temporal granularity for aggregated counts ────────────────────────────────
+INTERVAL = "P1M"   # monthly — reasonable for a bbox of this size
 
-# ── Tags OSM signalant une destruction ───────────────────────────────────────
-# Filtre ohsome : bâtiments portant des tags de ruines/destruction
+# ── OSM tags indicating destruction ──────────────────────────────────────────
+# Ohsome filter: buildings with ruin/destruction tags
 FILTER_DESTROYED = (
     "(building=ruins or ruins=yes or ruins=* "
     "or destroyed:building=* or disused:building=*) "
@@ -83,26 +83,26 @@ FILTER_DESTROYED = (
 )
 FILTER_BUILDINGS = "building=* and type:way"
 
-# ── Fichiers ──────────────────────────────────────────────────────────────────
+# ── Files ─────────────────────────────────────────────────────────────────────
 ACLED_FILE   = "dataACLED.shp"
 OUTPUT_DIR   = "outputs"
 DATA_DIR     = "data"
 
-# ── Fenêtre temporelle ACLED avant un événement OSM (jours) ──────────────────
+# ── ACLED time window before an OSM event (days) ─────────────────────────────
 ACLED_WINDOW_DAYS = 7
 
-# ── CRS métrique pour les calculs de distance (UTM 37N — Donetsk) ────────────
+# ── Metric CRS for distance calculations (UTM 37N — Donetsk) ─────────────────
 UTM_CRS = "EPSG:32637"
 
-# ── Résolution de la grille d'activité (degrés) ──────────────────────────────
-GRID_RES = 0.05   # ~5 km — assez fin sans exploser la mémoire
+# ── Activity grid resolution (degrees) ───────────────────────────────────────
+GRID_RES = 0.05   # ~5 km — fine enough without blowing up memory
 
 
 # =============================================================================
-# ░░  1. LIGNE DE FRONT — Données historiques cyterat/deepstate-map-data  ░░
+# ░░  1. FRONT LINE — Historical data cyterat/deepstate-map-data  ░░
 # =============================================================================
 
-# URL du fichier consolidé historique (mis à jour quotidiennement)
+# URL of the consolidated historical file (updated daily)
 DEEPSTATE_HISTORICAL_URL = (
     "https://raw.githubusercontent.com/cyterat/deepstate-map-data"
     "/main/deepstate-map-data.geojson.gz"
@@ -113,85 +113,85 @@ DEEPSTATE_LOCAL_JSON = os.path.join(DATA_DIR, "deepstate-map-data.geojson")
 
 def fetch_frontline(target_date: str = None, data_dir: str = DATA_DIR) -> gpd.GeoDataFrame:
     """
-    Charge la ligne de front DeepStateMap à une date précise.
+    Loads the DeepStateMap front line at a specific date.
 
-    Source : fichier GeoJSON historique consolidé du repo cyterat/deepstate-map-data.
-    Chaque feature contient une colonne 'date' (YYYY-MM-DD) correspondant
-    au snapshot quotidien de la zone occupée.
+    Source: consolidated historical GeoJSON file from the cyterat/deepstate-map-data repo.
+    Each feature contains a 'date' column (YYYY-MM-DD) corresponding
+    to the daily snapshot of the occupied zone.
 
-    Si le fichier n'existe pas localement, il est téléchargé (une seule fois).
-    Si target_date est None, utilise END (fin de la période d'analyse).
+    If the file does not exist locally, it is downloaded (once only).
+    If target_date is None, uses END (end of the analysis period).
 
-    Retourne un GeoDataFrame EPSG:4326 avec la géométrie de la zone occupée
-    au snapshot le plus proche de target_date.
+    Returns an EPSG:4326 GeoDataFrame with the occupied zone geometry
+    at the snapshot closest to target_date.
     """
     if target_date is None:
         target_date = END
     os.makedirs(data_dir, exist_ok=True)
 
-    # ── Téléchargement si absent (fichier ~100 Mo, une seule fois) ────────────
+    # ── Download if absent (file ~100 MB, once only) ──────────────────────────
     if not os.path.exists(DEEPSTATE_LOCAL_GZ):
-        log.info(f"Téléchargement du fichier historique DeepState (~100 Mo)…")
-        log.info(f"  Source : {DEEPSTATE_HISTORICAL_URL}")
+        log.info(f"Downloading DeepState historical file (~100 MB)…")
+        log.info(f"  Source: {DEEPSTATE_HISTORICAL_URL}")
         try:
             r = requests.get(DEEPSTATE_HISTORICAL_URL, stream=True, timeout=120)
             r.raise_for_status()
             with open(DEEPSTATE_LOCAL_GZ, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1024 * 1024):
                     f.write(chunk)
-            log.info(f"  Fichier téléchargé → {DEEPSTATE_LOCAL_GZ}")
+            log.info(f"  File downloaded → {DEEPSTATE_LOCAL_GZ}")
         except requests.RequestException as e:
-            log.error(f"Téléchargement échoué : {e}")
+            log.error(f"Download failed: {e}")
             log.error(
-                "Téléchargez manuellement le fichier depuis :\n"
+                "Download the file manually from:\n"
                 "  https://github.com/cyterat/deepstate-map-data\n"
-                f"  et placez-le dans : {DEEPSTATE_LOCAL_GZ}"
+                f"  and place it at: {DEEPSTATE_LOCAL_GZ}"
             )
             sys.exit(1)
 
-    # ── Lecture du fichier historique ─────────────────────────────────────────
-    log.info(f"Chargement du fichier historique DeepState…")
+    # ── Read the historical file ───────────────────────────────────────────────
+    log.info(f"Loading DeepState historical file…")
     try:
         import gzip as gz
         with gz.open(DEEPSTATE_LOCAL_GZ, "rt", encoding="utf-8") as f:
             all_gdf = gpd.read_file(f)
     except Exception:
-        # Essai sans décompression (fichier déjà décompressé)
+        # Try without decompression (file already decompressed)
         try:
             all_gdf = gpd.read_file(DEEPSTATE_LOCAL_GZ)
         except Exception as e:
-            log.error(f"Impossible de lire le fichier DeepState : {e}")
+            log.error(f"Cannot read DeepState file: {e}")
             sys.exit(1)
 
-    # Normalisation de la colonne date
+    # Normalize the date column
     date_col = next(
         (c for c in all_gdf.columns if "date" in c.lower()), None
     )
     if date_col is None:
-        log.error("Colonne 'date' introuvable dans le fichier DeepState.")
+        log.error("Column 'date' not found in the DeepState file.")
         sys.exit(1)
 
     all_gdf["_date"] = pd.to_datetime(all_gdf[date_col], errors="coerce", utc=True).dt.tz_convert(None)
 
-    # ── Sélection du snapshot le plus proche de target_date ──────────────────
+    # ── Select the snapshot closest to target_date ────────────────────────────
     target_ts  = pd.Timestamp(target_date)
     available  = all_gdf["_date"].dropna().unique()
     available  = pd.DatetimeIndex(sorted(available))
 
-    # On cherche le snapshot disponible ≤ target_date
+    # Find the available snapshot ≤ target_date
     before = available[available <= target_ts]
     if len(before) == 0:
-        log.warning(f"Aucun snapshot avant {target_date} — utilisation du plus ancien disponible.")
+        log.warning(f"No snapshot before {target_date} — using the oldest available.")
         chosen = available[0]
     else:
         chosen = before[-1]
 
-    log.info(f"Ligne de front — snapshot sélectionné : {chosen.date()} (cible : {target_date})")
+    log.info(f"Front line — selected snapshot: {chosen.date()} (target: {target_date})")
 
     front_gdf = all_gdf[all_gdf["_date"] == chosen].copy()
 
     if front_gdf.empty:
-        log.error(f"Aucune géométrie pour le snapshot {chosen.date()}")
+        log.error(f"No geometry for snapshot {chosen.date()}")
         sys.exit(1)
 
     if front_gdf.crs is None:
@@ -199,34 +199,34 @@ def fetch_frontline(target_date: str = None, data_dir: str = DATA_DIR) -> gpd.Ge
     elif front_gdf.crs.to_epsg() != 4326:
         front_gdf = front_gdf.to_crs(4326)
 
-    # Sauvegarde du snapshot utilisé
+    # Save the used snapshot
     cache_path = os.path.join(data_dir, f"frontline_{chosen.date()}.geojson")
     front_gdf.to_file(cache_path, driver="GeoJSON")
-    log.info(f"Snapshot sauvegardé → {cache_path}")
+    log.info(f"Snapshot saved → {cache_path}")
 
     return front_gdf
 
 
 # =============================================================================
-# ░░  2. DONNÉES ACLED  ░░
+# ░░  2. ACLED DATA  ░░
 # =============================================================================
 
 def load_acled(filepath: str, bbox_str: str = BBOX) -> gpd.GeoDataFrame:
     """
-    Charge dataACLED.shp, normalise les colonnes, filtre sur la bbox et
-    la période d'analyse.
+    Loads dataACLED.shp, normalizes columns, filters on bbox and
+    analysis period.
     """
-    log.info(f"Chargement ACLED : {filepath}")
+    log.info(f"Loading ACLED: {filepath}")
     gdf = gpd.read_file(filepath)
     gdf.columns = [c.lower() for c in gdf.columns]
 
-    # Normalisation CRS
+    # CRS normalization
     if gdf.crs is None:
         gdf = gdf.set_crs(4326)
     elif gdf.crs.to_epsg() != 4326:
         gdf = gdf.to_crs(4326)
 
-    # Détection et parsing de la colonne date
+    # Detect and parse the date column
     date_col = next(
         (c for c in gdf.columns if "date" in c or "timestamp" in c), None
     )
@@ -234,39 +234,39 @@ def load_acled(filepath: str, bbox_str: str = BBOX) -> gpd.GeoDataFrame:
         raw_dates    = pd.to_datetime(gdf[date_col], errors="coerce", utc=True)
         gdf["date"]  = raw_dates.dt.tz_localize(None) if raw_dates.dt.tz is None \
                        else raw_dates.dt.tz_convert(None)
-        log.info(f"Dates parsées — exemple : {gdf['date'].dropna().iloc[0] if not gdf['date'].dropna().empty else 'N/A'}")
+        log.info(f"Dates parsed — example: {gdf['date'].dropna().iloc[0] if not gdf['date'].dropna().empty else 'N/A'}")
     else:
-        log.warning("Colonne date non trouvée dans ACLED.")
+        log.warning("Date column not found in ACLED.")
 
-    # Filtre Ukraine si colonne pays disponible
+    # Filter Ukraine if country column is available
     for col in ["country", "pays", "adm0_name", "admin0"]:
         if col in gdf.columns:
             gdf = gdf[gdf[col].str.contains("Ukraine", case=False, na=False)]
-            log.info(f"Filtre pays via '{col}' → {len(gdf)} événements Ukraine")
+            log.info(f"Country filter via '{col}' → {len(gdf)} Ukraine events")
             break
 
-    # Filtre bbox
+    # Bbox filter
     lon_min, lat_min, lon_max, lat_max = map(float, bbox_str.split(","))
     gdf = gdf.cx[lon_min:lon_max, lat_min:lat_max]
 
-    # Filtre période
+    # Period filter
     if "date" in gdf.columns:
         gdf = gdf[
             (gdf["date"] >= pd.Timestamp(START)) &
             (gdf["date"] <= pd.Timestamp(END))
         ]
 
-    log.info(f"ACLED filtré : {len(gdf)} événements dans la zone/période")
+    log.info(f"ACLED filtered: {len(gdf)} events in the area/period")
     return gdf.reset_index(drop=True)
 
 
 # =============================================================================
-# ░░  3. REQUÊTES OHSOME  ░░
+# ░░  3. OHSOME QUERIES  ░░
 # =============================================================================
 
 def _ohsome_post(endpoint: str, params: dict) -> dict:
     """
-    Effectue une requête POST sur l'API ohsome avec retry.
+    Performs a POST request to the ohsome API with retry.
     """
     URL = f"https://api.ohsome.org/v1/{endpoint}"
     for attempt in range(3):
@@ -274,23 +274,23 @@ def _ohsome_post(endpoint: str, params: dict) -> dict:
             r = requests.post(URL, data=params, timeout=620)
             if r.status_code == 200:
                 return r.json()
-            log.warning(f"ohsome HTTP {r.status_code} (tentative {attempt+1}/3): {r.text[:200]}")
+            log.warning(f"ohsome HTTP {r.status_code} (attempt {attempt+1}/3): {r.text[:200]}")
         except requests.RequestException as e:
-            log.warning(f"ohsome erreur réseau (tentative {attempt+1}/3): {e}")
+            log.warning(f"ohsome network error (attempt {attempt+1}/3): {e}")
         time.sleep(5)
-    log.error(f"ohsome endpoint '{endpoint}' inaccessible après 3 tentatives.")
+    log.error(f"ohsome endpoint '{endpoint}' unreachable after 3 attempts.")
     return {}
 
 
 def fetch_osm_deletions(bbox: str, start: str, end: str) -> pd.DataFrame:
     """
-    Récupère via ohsome /contributions/count le nombre de contributions
-    de type DELETION sur les bâtiments, par mois.
+    Retrieves via ohsome /contributions/count the number of DELETION
+    contributions on buildings, per month.
 
-    L'endpoint contributions/count avec contributionType=deletion
-    renvoie le nombre de suppressions d'objets OSM dans la période.
+    The contributions/count endpoint with contributionType=deletion
+    returns the number of OSM object deletions in the period.
     """
-    log.info("Requête ohsome — suppressions de bâtiments (mensuel)…")
+    log.info("Ohsome query — building deletions (monthly)…")
     params = {
         "bboxes":           bbox,
         "time":             f"{start}/{end}/{INTERVAL}",
@@ -301,22 +301,22 @@ def fetch_osm_deletions(bbox: str, start: str, end: str) -> pd.DataFrame:
     data = _ohsome_post("contributions/count", params)
     rows = data.get("result", [])
     if not rows:
-        log.warning("Aucune donnée de suppression reçue.")
+        log.warning("No deletion data received.")
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
     df["period"]    = pd.to_datetime(df["fromTimestamp"])
     df["deletions"] = df["value"].fillna(0).astype(int)
-    log.info(f"Suppressions reçues : {df['deletions'].sum()} sur {len(df)} périodes")
+    log.info(f"Deletions received: {df['deletions'].sum()} over {len(df)} periods")
     return df[["period", "deletions"]]
 
 
 def fetch_osm_destroyed_tags(bbox: str, start: str, end: str) -> pd.DataFrame:
     """
-    Compte les bâtiments portant des tags de destruction (ruins, destroyed…)
-    par mois. Utilise /elements/count pour avoir l'état à chaque snapshot.
+    Counts buildings with destruction tags (ruins, destroyed…)
+    per month. Uses /elements/count to get the state at each snapshot.
     """
-    log.info("Requête ohsome — bâtiments avec tags de destruction (mensuel)…")
+    log.info("Ohsome query — buildings with destruction tags (monthly)…")
     params = {
         "bboxes":  bbox,
         "time":    f"{start}/{end}/{INTERVAL}",
@@ -326,22 +326,22 @@ def fetch_osm_destroyed_tags(bbox: str, start: str, end: str) -> pd.DataFrame:
     data = _ohsome_post("elements/count", params)
     rows = data.get("result", [])
     if not rows:
-        log.warning("Aucune donnée de tags destruction reçue.")
+        log.warning("No destruction tag data received.")
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
     df["period"]   = pd.to_datetime(df["timestamp"])
     df["n_ruines"] = df["value"].fillna(0).astype(int)
-    log.info(f"Snapshot ruines — max mensuel : {df['n_ruines'].max()}")
+    log.info(f"Ruins snapshot — monthly max: {df['n_ruines'].max()}")
     return df[["period", "n_ruines"]]
 
 
 def fetch_osm_activity(bbox: str, start: str, end: str) -> pd.DataFrame:
     """
-    Compte toutes les contributions OSM (bâtiments) par mois pour
-    mesurer la baisse d'activité globale dans la zone.
+    Counts all OSM contributions (buildings) per month to
+    measure the global activity drop in the area.
     """
-    log.info("Requête ohsome — activité globale OSM bâtiments (mensuel)…")
+    log.info("Ohsome query — global OSM building activity (monthly)…")
     params = {
         "bboxes":  bbox,
         "time":    f"{start}/{end}/{INTERVAL}",
@@ -361,18 +361,18 @@ def fetch_osm_activity(bbox: str, start: str, end: str) -> pd.DataFrame:
 
 def fetch_osm_deletions_geom(bbox: str, start: str, end: str) -> gpd.GeoDataFrame:
     """
-    Récupère les centroïdes des bâtiments supprimés via
-    /contributions/centroid — endpoint léger qui renvoie UNIQUEMENT
-    un point par contribution (pas la géométrie complète), ce qui évite
-    tout MemoryError même sur une grande zone.
+    Retrieves centroids of deleted buildings via
+    /contributions/centroid — lightweight endpoint that returns ONLY
+    one point per contribution (not the full geometry), avoiding
+    any MemoryError even on a large area.
 
-    contributionType=deletion filtre côté serveur : seuls les objets
-    effectivement supprimés sont retournés.
+    contributionType=deletion filters server-side: only actually
+    deleted objects are returned.
 
-    Si cet endpoint échoue (400), fallback sur une grille de comptage
-    par cellule via /contributions/count avec groupByBbox.
+    If this endpoint fails (400), falls back to a counting grid
+    per cell via /contributions/count with groupByBbox.
     """
-    log.info("Requête ohsome — centroïdes des suppressions (contributions/centroid)…")
+    log.info("Ohsome query — deletion centroids (contributions/centroid)…")
     params = {
         "bboxes":           bbox,
         "time":             f"{start}/{end}",
@@ -389,7 +389,7 @@ def fetch_osm_deletions_geom(bbox: str, start: str, end: str) -> gpd.GeoDataFram
             data     = r.json()
             features = data.get("features", [])
             if features:
-                log.info(f"{len(features)} centroïdes de suppressions reçus")
+                log.info(f"{len(features)} deletion centroids received")
                 pts, timestamps = [], []
                 for f in features:
                     try:
@@ -403,42 +403,42 @@ def fetch_osm_deletions_geom(bbox: str, start: str, end: str) -> gpd.GeoDataFram
                     except Exception:
                         continue
                 gdf = gpd.GeoDataFrame({"deleted_at": timestamps}, geometry=pts, crs=4326)
-                log.info(f"GeoDataFrame suppressions : {len(gdf)} points")
+                log.info(f"Deletions GeoDataFrame: {len(gdf)} points")
                 return gdf
             else:
-                log.warning("contributions/centroid : aucune feature retournée.")
+                log.warning("contributions/centroid: no features returned.")
         else:
             log.warning(
-                f"contributions/centroid HTTP {r.status_code} : {r.text[:200]}\n"
-                "→ Fallback sur grille de comptage…"
+                f"contributions/centroid HTTP {r.status_code}: {r.text[:200]}\n"
+                "→ Falling back to counting grid…"
             )
     except (requests.RequestException, MemoryError) as e:
-        log.warning(f"contributions/centroid erreur : {e} → Fallback grille…")
+        log.warning(f"contributions/centroid error: {e} → Falling back to grid…")
 
-    # ── Fallback : grille de comptage par cellule via groupByBbox ────────────
+    # ── Fallback: per-cell counting grid via groupByBbox ─────────────────────
     return _deletions_grid_fallback(bbox, start, end)
 
 
 def _deletions_grid_fallback(bbox: str, start: str, end: str) -> gpd.GeoDataFrame:
     """
-    Fallback si contributions/centroid n'est pas disponible.
+    Fallback when contributions/centroid is not available.
 
-    Découpe la bbox en cellules GRID_RES×GRID_RES et interroge
-    contributions/count (deletion) pour chaque cellule.
-    Retourne un GeoDataFrame avec un point au centroïde de chaque
-    cellule, répété autant de fois qu'il y a eu de suppressions.
-    → Permet d'alimenter build_activity_grid() avec les mêmes données.
+    Splits the bbox into GRID_RES×GRID_RES cells and queries
+    contributions/count (deletion) for each cell.
+    Returns a GeoDataFrame with one point at the centroid of each
+    cell, repeated as many times as there were deletions.
+    → Allows feeding build_activity_grid() with the same data.
 
-    Beaucoup plus léger qu'elementsFullHistory car on ne récupère
-    que des entiers, jamais de géométries complètes.
+    Much lighter than elementsFullHistory since only integers are
+    retrieved, never full geometries.
     """
-    log.info("Fallback : comptage des suppressions par cellule de grille…")
+    log.info("Fallback: counting deletions per grid cell…")
     lon_min, lat_min, lon_max, lat_max = map(float, bbox.split(","))
 
     lons = np.arange(lon_min, lon_max, GRID_RES)
     lats = np.arange(lat_min, lat_max, GRID_RES)
     n_cells = len(lons) * len(lats)
-    log.info(f"  {n_cells} cellules à interroger (résolution {GRID_RES}°)…")
+    log.info(f"  {n_cells} cells to query (resolution {GRID_RES}°)…")
 
     all_pts, all_ts = [], []
     URL = "https://api.ohsome.org/v1/contributions/count"
@@ -464,7 +464,7 @@ def _deletions_grid_fallback(bbox: str, start: str, end: str) -> gpd.GeoDataFram
                 rows = r.json().get("result", [])
                 n_del = sum(row.get("value", 0) for row in rows)
                 if n_del > 0:
-                    # centroïde de la cellule, répété n_del fois
+                    # cell centroid, repeated n_del times
                     cx_pt = lon + GRID_RES / 2
                     cy_pt = lat + GRID_RES / 2
                     for _ in range(int(n_del)):
@@ -473,27 +473,27 @@ def _deletions_grid_fallback(bbox: str, start: str, end: str) -> gpd.GeoDataFram
             except Exception:
                 continue
 
-        # Log de progression toutes les 5 colonnes
+        # Log progress every 5 columns
         if (i + 1) % 5 == 0:
-            log.info(f"  Progression : colonne {i+1}/{len(lons)} traitée")
+            log.info(f"  Progress: column {i+1}/{len(lons)} done")
 
     if not all_pts:
-        log.warning("Fallback grille : aucune suppression détectée.")
+        log.warning("Grid fallback: no deletions detected.")
         return gpd.GeoDataFrame()
 
     gdf = gpd.GeoDataFrame({"deleted_at": all_ts}, geometry=all_pts, crs=4326)
-    log.info(f"Fallback grille — {len(gdf)} suppressions reconstituées")
+    log.info(f"Grid fallback — {len(gdf)} deletions reconstructed")
     return gdf
 
 
 # =============================================================================
-# ░░  4. CROISEMENT OSM × ACLED  ░░
+# ░░  4. OSM × ACLED CROSS-CORRELATION  ░░
 # =============================================================================
 
 def _strip_tz(series: pd.Series) -> pd.Series:
     """
-    Normalise une Series datetime : supprime le timezone quelle que soit
-    son origine (UTC, tz-aware, tz-naive). Retourne toujours tz-naive.
+    Normalizes a datetime Series: removes the timezone regardless of
+    its origin (UTC, tz-aware, tz-naive). Always returns tz-naive.
     """
     try:
         if hasattr(series.dt, "tz") and series.dt.tz is not None:
@@ -511,17 +511,17 @@ def correlate_osm_acled(
     gdf_acled: gpd.GeoDataFrame
 ) -> pd.DataFrame:
     """
-    Pour chaque mois, compte le nombre d'événements ACLED survenus dans
-    les ACLED_WINDOW_DAYS jours précédant la fin de la période OSM.
-    Retourne df_osm enrichi avec 'n_acled_events' et 'n_acled_fatalities'.
+    For each month, counts the number of ACLED events that occurred in
+    the ACLED_WINDOW_DAYS days preceding the end of the OSM period.
+    Returns df_osm enriched with 'n_acled_events' and 'n_acled_fatalities'.
     """
     if "date" not in gdf_acled.columns or df_osm.empty:
         return df_osm
 
-    # ── Garantie : dates ACLED toujours tz-naive ──────────────────────────
+    # ── Guarantee: ACLED dates always tz-naive ────────────────────────────
     acled_dates = _strip_tz(gdf_acled["date"])
 
-    # ── Garantie : période OSM toujours tz-naive ──────────────────────────
+    # ── Guarantee: OSM period always tz-naive ─────────────────────────────
     osm_periods = _strip_tz(pd.to_datetime(df_osm["period"], errors="coerce"))
 
     acled_counts, acled_fatal = [], []
@@ -551,7 +551,7 @@ def correlate_osm_acled(
 
 
 # =============================================================================
-# ░░  5. GRILLE D'ACTIVITÉ SPATIALE  ░░
+# ░░  5. SPATIAL ACTIVITY GRID  ░░
 # =============================================================================
 
 def build_activity_grid(
@@ -560,11 +560,11 @@ def build_activity_grid(
     resolution: float = GRID_RES
 ) -> gpd.GeoDataFrame:
     """
-    Construit une grille régulière sur la bbox et compte les suppressions
-    par cellule → carte de chaleur des destructions.
+    Builds a regular grid over the bbox and counts deletions
+    per cell → destruction heat map.
     """
     if gdf_deletions.empty:
-        log.warning("Pas de données de suppression pour la grille.")
+        log.warning("No deletion data for the grid.")
         return gpd.GeoDataFrame()
 
     lon_min, lat_min, lon_max, lat_max = map(float, bbox_str.split(","))
@@ -590,12 +590,12 @@ def build_activity_grid(
         return gpd.GeoDataFrame()
 
     grid = gpd.GeoDataFrame({"n_deletions": counts}, geometry=cells, crs=4326)
-    log.info(f"Grille : {len(grid)} cellules avec au moins 1 suppression")
+    log.info(f"Grid: {len(grid)} cells with at least 1 deletion")
     return grid
 
 
 # =============================================================================
-# ░░  6. VISUALISATIONS  ░░
+# ░░  6. VISUALIZATIONS  ░░
 # =============================================================================
 
 def plot_all(
@@ -620,7 +620,7 @@ def plot_all(
     }
 
     # ══════════════════════════════════════════════════════════════════════════
-    # FIG 1 — Tableau de bord temporel OSM (3 signaux sur 3 lignes)
+    # FIG 1 — OSM temporal dashboard (3 signals on 3 rows)
     # ══════════════════════════════════════════════════════════════════════════
     fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
     fig.suptitle(
@@ -645,7 +645,7 @@ def plot_all(
         axes[1].set_title("② Bâtiments OSM supprimés (signal de destruction physique)", fontsize=11)
         axes[1].axvline(pd.Timestamp("2022-02-24"), color="red",
                         linestyle="--", lw=1.5)
-        # Annotation du pic
+        # Peak annotation
         if len(df_del) > 0:
             peak = df_del.loc[df_del["deletions"].idxmax()]
             axes[1].annotate(
@@ -676,11 +676,11 @@ def plot_all(
     plt.setp(axes[2].xaxis.get_majorticklabels(), rotation=40, ha="right")
     plt.tight_layout(rect=[0, 0, 1, 0.98])
     fig.savefig(os.path.join(output_dir, "fig1_signaux_osm.png"), dpi=150, bbox_inches="tight")
-    log.info("✔ Fig 1 — signaux OSM sauvegardée")
+    log.info("✔ Fig 1 — OSM signals saved")
     plt.close(fig)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # FIG 2 — Comparaison OSM suppressions vs ACLED (double axe)
+    # FIG 2 — OSM deletions vs ACLED comparison (dual axis)
     # ══════════════════════════════════════════════════════════════════════════
     if not df_corr.empty and "n_acled_events" in df_corr.columns:
         fig, ax1 = plt.subplots(figsize=(14, 6))
@@ -705,7 +705,7 @@ def plot_all(
             "Zone Donetsk — Fév–Déc 2022",
             fontsize=13, fontweight="bold"
         )
-        # Légende fusionnée
+        # Merged legend
         h1, l1 = ax1.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
         ax1.legend(h1 + h2, l1 + l2, fontsize=10, loc="upper left",
@@ -715,7 +715,7 @@ def plot_all(
         plt.setp(ax1.xaxis.get_majorticklabels(), rotation=40, ha="right")
         ax1.grid(axis="y", linestyle="--", alpha=0.3)
 
-        # Coefficient de corrélation de Pearson
+        # Pearson correlation coefficient
         if len(df_corr) > 2:
             corr_val = df_corr["deletions"].corr(df_corr["n_acled_events"])
             ax1.text(0.98, 0.95,
@@ -727,11 +727,11 @@ def plot_all(
 
         plt.tight_layout()
         fig.savefig(os.path.join(output_dir, "fig2_osm_vs_acled.png"), dpi=150, bbox_inches="tight")
-        log.info("✔ Fig 2 — OSM vs ACLED sauvegardée")
+        log.info("✔ Fig 2 — OSM vs ACLED saved")
         plt.close(fig)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # FIG 3 — Carte : grille suppressions + ligne de front + ACLED
+    # FIG 3 — Map: deletion grid + front line + ACLED
     # ══════════════════════════════════════════════════════════════════════════
     fig, ax = plt.subplots(figsize=(14, 10))
     lon_min, lat_min, lon_max, lat_max = map(float, BBOX.split(","))
@@ -754,7 +754,7 @@ def plot_all(
                   zorder=4)
 
     if not gdf_acled.empty:
-        # Taille des points proportionnelle au nombre de victimes si dispo
+        # Point size proportional to number of fatalities if available
         fatal_col = next(
             (c for c in gdf_acled.columns if "fatal" in c or "death" in c), None
         )
@@ -773,7 +773,7 @@ def plot_all(
             cx.add_basemap(ax, crs="EPSG:4326",
                            source=cx.providers.CartoDB.DarkMatter, zoom=9)
         except Exception as e:
-            log.warning(f"Fond de carte non chargé : {e}")
+            log.warning(f"Basemap not loaded: {e}")
 
     ax.set_title(
         "Carte des destructions OSM — Frontière Donetsk, Fév–Déc 2022\n"
@@ -786,11 +786,11 @@ def plot_all(
     ax.grid(linestyle="--", alpha=0.25)
     plt.tight_layout()
     fig.savefig(os.path.join(output_dir, "fig3_carte_synthese.png"), dpi=150, bbox_inches="tight")
-    log.info("✔ Fig 3 — carte de synthèse sauvegardée")
+    log.info("✔ Fig 3 — synthesis map saved")
     plt.close(fig)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # FIG 4 — Types d'événements ACLED (barres horizontales)
+    # FIG 4 — ACLED event types (horizontal bars)
     # ══════════════════════════════════════════════════════════════════════════
     type_col = next(
         (c for c in gdf_acled.columns if "event" in c and "type" in c), None
@@ -801,7 +801,7 @@ def plot_all(
         fig.suptitle("Analyse des événements ACLED — Zone Donetsk, Fév–Déc 2022",
                      fontsize=13, fontweight="bold")
 
-        # Gauche : types d'événements
+        # Left: event types
         counts = gdf_acled[type_col].value_counts().head(8)
         colors = plt.cm.Set2(np.linspace(0, 1, len(counts)))
         counts.plot(kind="barh", ax=axes[0], color=colors, edgecolor="white")
@@ -810,7 +810,7 @@ def plot_all(
         axes[0].invert_yaxis()
         axes[0].grid(axis="x", linestyle="--", alpha=0.4)
 
-        # Droite : évolution mensuelle par type (top 4)
+        # Right: monthly evolution by type (top 4)
         if "date" in gdf_acled.columns:
             top4 = counts.head(4).index.tolist()
             palette = plt.cm.Set1(np.linspace(0, 0.8, 4))
@@ -836,12 +836,12 @@ def plot_all(
 
         plt.tight_layout()
         fig.savefig(os.path.join(output_dir, "fig4_acled_types.png"), dpi=150, bbox_inches="tight")
-        log.info("✔ Fig 4 — types ACLED sauvegardée")
+        log.info("✔ Fig 4 — ACLED types saved")
         plt.close(fig)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # FIG 5 — Triple comparaison : OSM activité + suppressions + ACLED
-    #          sur la même timeline avec zones annotées
+    # FIG 5 — Triple comparison: OSM activity + deletions + ACLED
+    #          on the same timeline with annotated zones
     # ══════════════════════════════════════════════════════════════════════════
     if not df_del.empty and not df_act.empty:
         fig, ax1 = plt.subplots(figsize=(15, 6))
@@ -849,24 +849,24 @@ def plot_all(
         ax3 = ax1.twinx()
         ax3.spines["right"].set_position(("outward", 65))
 
-        # Activité globale (fond gris)
+        # Global activity (gray background)
         if not df_act.empty:
             ax1.bar(df_act["period"], df_act["activity"],
                     color=C["gray"], alpha=0.45, width=22,
                     label="Activité OSM totale", zorder=1)
 
-        # Suppressions (rouge)
+        # Deletions (red)
         ax1.bar(df_del["period"], df_del["deletions"],
                 color=C["deletion"], alpha=0.8, width=15,
                 label="Suppressions OSM", zorder=2)
 
-        # Tags ruines (orange)
+        # Ruin tags (orange)
         if not df_ruins.empty:
             ax2.plot(df_ruins["period"], df_ruins["n_ruines"],
                      color=C["ruins"], lw=2, ms=6, marker="s",
                      label="Tags ruins/destroyed", zorder=3)
 
-        # ACLED mensuel
+        # Monthly ACLED
         if not gdf_acled.empty and "date" in gdf_acled.columns:
             monthly_acled = (
                 gdf_acled
@@ -878,11 +878,11 @@ def plot_all(
                      color=C["acled"], lw=2, ms=7, marker="D",
                      linestyle="--", label="Événements ACLED", zorder=4)
 
-        # Ligne d'invasion
+        # Invasion line
         ax1.axvline(pd.Timestamp("2022-02-24"), color="red",
                     linestyle="-", lw=2, alpha=0.7, label="Invasion 24 fév. 2022")
 
-        # Zones de phases de guerre
+        # War phase zones
         phases = [
             ("2022-02-24", "2022-04-01", "#E74C3C", "Phase offensive\ninitiiale"),
             ("2022-04-01", "2022-09-01", "#E67E22", "Guerre\nd'attrition"),
@@ -911,7 +911,7 @@ def plot_all(
         ax1.xaxis.set_major_locator(mdates.MonthLocator())
         plt.setp(ax1.xaxis.get_majorticklabels(), rotation=40, ha="right")
 
-        # Légende fusionnée
+        # Merged legend
         h1, l1 = ax1.get_legend_handles_labels()
         h2, l2 = ax2.get_legend_handles_labels()
         h3, l3 = ax3.get_legend_handles_labels()
@@ -921,11 +921,11 @@ def plot_all(
         plt.tight_layout()
         fig.savefig(os.path.join(output_dir, "fig5_synthese_triple.png"),
                     dpi=150, bbox_inches="tight")
-        log.info("✔ Fig 5 — synthèse triple sauvegardée")
+        log.info("✔ Fig 5 — triple synthesis saved")
         plt.close(fig)
 
-    log.info(f"Toutes les figures sauvegardées dans '{output_dir}/'")
-    log.info("Fichiers produits :")
+    log.info(f"All figures saved in '{output_dir}/'")
+    log.info("Output files:")
     for f in sorted(os.listdir(output_dir)):
         log.info(f"  {output_dir}/{f}")
 
@@ -935,65 +935,65 @@ def plot_all(
 
 def main():
     log.info("═" * 60)
-    log.info("  OSM À L'ÉPREUVE DE LA GUERRE — Analyse exploratoire")
-    log.info(f"  Zone   : {BBOX}")
-    log.info(f"  Période: {START} → {END}")
+    log.info("  OSM UNDER THE TEST OF WAR — Exploratory Analysis")
+    log.info(f"  Area   : {BBOX}")
+    log.info(f"  Period : {START} → {END}")
     log.info("═" * 60)
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(DATA_DIR,   exist_ok=True)
 
-    # ── 1. Ligne de front à la date de FIN de la période ─────────────────────
-    # On charge le snapshot DeepState au plus proche de END (2022-12-31)
-    # pour avoir la ligne de front contemporaine des données OSM analysées.
+    # ── 1. Front line at the END date of the period ───────────────────────────
+    # Load the DeepState snapshot closest to END (2022-12-31)
+    # to get the front line contemporary with the OSM data analyzed.
     front_gdf = fetch_frontline(target_date=END)
 
     # ── 2. ACLED ──────────────────────────────────────────────────────────────
     if os.path.exists(ACLED_FILE):
         gdf_acled = load_acled(ACLED_FILE)
         gdf_acled.to_file(os.path.join(OUTPUT_DIR, "acled_zone.geojson"), driver="GeoJSON")
-        log.info(f"✔ ACLED sauvegardé ({len(gdf_acled)} événements)")
+        log.info(f"✔ ACLED saved ({len(gdf_acled)} events)")
     else:
-        log.warning(f"{ACLED_FILE} introuvable — analyse ACLED désactivée.")
+        log.warning(f"{ACLED_FILE} not found — ACLED analysis disabled.")
         gdf_acled = gpd.GeoDataFrame()
 
-    # ── 3. Requêtes ohsome — sauvegarde immédiate après chaque appel ──────────
+    # ── 3. Ohsome queries — immediate save after each call ────────────────────
     df_deletions = fetch_osm_deletions(BBOX, START, END)
     if not df_deletions.empty:
         df_deletions.to_csv(os.path.join(OUTPUT_DIR, "deletions_mensuelles.csv"), index=False)
-        log.info("✔ deletions_mensuelles.csv sauvegardé")
+        log.info("✔ deletions_mensuelles.csv saved")
 
     df_ruins = fetch_osm_destroyed_tags(BBOX, START, END)
     if not df_ruins.empty:
         df_ruins.to_csv(os.path.join(OUTPUT_DIR, "ruins_mensuels.csv"), index=False)
-        log.info("✔ ruins_mensuels.csv sauvegardé")
+        log.info("✔ ruins_mensuels.csv saved")
 
     df_activity = fetch_osm_activity(BBOX, START, END)
     if not df_activity.empty:
         df_activity.to_csv(os.path.join(OUTPUT_DIR, "activite_osm.csv"), index=False)
-        log.info("✔ activite_osm.csv sauvegardé")
+        log.info("✔ activite_osm.csv saved")
 
-    log.info("Requête géométries supprimées (contributions/centroid ou fallback grille)…")
+    log.info("Deleted geometry query (contributions/centroid or grid fallback)…")
     gdf_deletions_geom = fetch_osm_deletions_geom(BBOX, START, END)
     if not gdf_deletions_geom.empty:
         gdf_deletions_geom.to_file(
             os.path.join(OUTPUT_DIR, "suppressions_geom.geojson"), driver="GeoJSON"
         )
-        log.info("✔ suppressions_geom.geojson sauvegardé")
+        log.info("✔ suppressions_geom.geojson saved")
 
-    # ── 4. Croisement OSM × ACLED ─────────────────────────────────────────────
+    # ── 4. OSM × ACLED cross-correlation ─────────────────────────────────────
     df_corr = correlate_osm_acled(df_deletions, gdf_acled)
     if not df_corr.empty:
         df_corr.to_csv(os.path.join(OUTPUT_DIR, "correlation_osm_acled.csv"), index=False)
-        log.info("✔ correlation_osm_acled.csv sauvegardé")
+        log.info("✔ correlation_osm_acled.csv saved")
 
-    # ── 5. Grille spatiale ────────────────────────────────────────────────────
+    # ── 5. Spatial grid ───────────────────────────────────────────────────────
     grid = build_activity_grid(gdf_deletions_geom)
     if not grid.empty:
         grid.to_file(os.path.join(OUTPUT_DIR, "grille_suppressions.geojson"), driver="GeoJSON")
-        log.info("✔ grille_suppressions.geojson sauvegardé")
+        log.info("✔ grille_suppressions.geojson saved")
 
-    # ── 6. Visualisations ─────────────────────────────────────────────────────
+    # ── 6. Visualizations ─────────────────────────────────────────────────────
     plot_all(
         df_del    = df_deletions,
         df_ruins  = df_ruins,
@@ -1005,14 +1005,14 @@ def main():
         grid      = grid
     )
 
-    # ── Résumé final ──────────────────────────────────────────────────────────
+    # ── Final summary ─────────────────────────────────────────────────────────
     log.info("═" * 60)
-    log.info("  RÉSUMÉ FINAL")
-    log.info(f"  Suppressions OSM totales  : {df_deletions['deletions'].sum() if not df_deletions.empty else 'N/A'}")
-    log.info(f"  Bâtiments ruines max/mois : {df_ruins['n_ruines'].max() if not df_ruins.empty else 'N/A'}")
-    log.info(f"  Événements ACLED retenus  : {len(gdf_acled)}")
-    log.info(f"  Suppressions géolocalisées: {len(gdf_deletions_geom) if not gdf_deletions_geom.empty else 0}")
-    log.info(f"  Fichiers de sortie        : {OUTPUT_DIR}/")
+    log.info("  FINAL SUMMARY")
+    log.info(f"  Total OSM deletions       : {df_deletions['deletions'].sum() if not df_deletions.empty else 'N/A'}")
+    log.info(f"  Ruins buildings max/month : {df_ruins['n_ruines'].max() if not df_ruins.empty else 'N/A'}")
+    log.info(f"  ACLED events retained     : {len(gdf_acled)}")
+    log.info(f"  Geolocated deletions      : {len(gdf_deletions_geom) if not gdf_deletions_geom.empty else 0}")
+    log.info(f"  Output files              : {OUTPUT_DIR}/")
     log.info("═" * 60)
 
 
