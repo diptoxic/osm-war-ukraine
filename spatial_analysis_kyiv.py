@@ -765,6 +765,7 @@ def plot_all(df_del, df_ruins, df_act, df_corr,
     fig.savefig(os.path.join(OUTPUT_DIR, "fig1_signaux_kiev.png"),
                 dpi=150, bbox_inches="tight")
     log.info("✔ Fig 1 — Kyiv OSM signals"); plt.close(fig)
+    return  # only fig1 requested
 
     # ── Fig 2: OSM vs ACLED Kyiv ──────────────────────────────────────────────
     if not df_corr.empty and "n_acled_events" in df_corr.columns:
@@ -1070,6 +1071,34 @@ def main():
         df_corr.to_csv(os.path.join(OUTPUT_DIR, "correlation_kiev.csv"), index=False)
         log.info("✔ correlation_kiev.csv")
 
+    # 5b. Grid for the heat map (fig3) ────────────────────────────────────────
+    gdf_grid = gpd.GeoDataFrame()   # initialized empty by default
+    cache_grid = os.path.join(OUTPUT_DIR, "grille_suppressions_kiev.geojson")
+    if os.path.exists(cache_grid):
+        log.info(f"Grid → cache: {cache_grid}")
+        gdf_grid = gpd.read_file(cache_grid)
+    else:
+        gdf_grid = fetch_deletions_geom()
+        if not gdf_grid.empty:
+            gdf_grid.to_file(cache_grid, driver="GeoJSON")
+            log.info(f"✔ {cache_grid}")
+
+    # 5. PRECISE OSM points for point-to-point correlation ────────────────────
+    gdf_osm_pts = gpd.GeoDataFrame()   # initialized empty by default
+    cache_pts = os.path.join(OUTPUT_DIR, "osm_points_precis_kiev.geojson")
+    if os.path.exists(cache_pts):
+        log.info(f"Precise points → cache: {cache_pts}")
+        gdf_osm_pts = gpd.read_file(cache_pts)
+        gdf_osm_pts["timestamp"] = pd.to_datetime(
+            gdf_osm_pts.get("timestamp"), errors="coerce"
+        )
+        gdf_osm_pts["deleted_at"] = gdf_osm_pts["timestamp"]
+    else:
+        gdf_osm_pts = fetch_osm_points_precise()
+        if not gdf_osm_pts.empty:
+            gdf_osm_pts.to_file(cache_pts, driver="GeoJSON")
+            log.info(f"✔ {cache_pts} ({len(gdf_osm_pts)} points)")
+
     # 4b. Point-to-point SPATIO-TEMPORAL correlation
     # Precise ACLED strike coordinates × precise OSM edit coordinates
     log.info("Point-to-point correlation (strike × OSM edit within 1km/7d)…")
@@ -1092,34 +1121,6 @@ def main():
             plot_spatiotemporal(gdf_pairs, acled_siege)
     else:
         log.warning("Insufficient data for spatio-temporal correlation.")
-
-    # 5. PRECISE OSM points for point-to-point correlation ────────────────────
-    gdf_osm_pts = gpd.GeoDataFrame()   # initialized empty by default
-    cache_pts = os.path.join(OUTPUT_DIR, "osm_points_precis_kiev.geojson")
-    if os.path.exists(cache_pts):
-        log.info(f"Precise points → cache: {cache_pts}")
-        gdf_osm_pts = gpd.read_file(cache_pts)
-        gdf_osm_pts["timestamp"] = pd.to_datetime(
-            gdf_osm_pts.get("timestamp"), errors="coerce"
-        )
-        gdf_osm_pts["deleted_at"] = gdf_osm_pts["timestamp"]
-    else:
-        gdf_osm_pts = fetch_osm_points_precise()
-        if not gdf_osm_pts.empty:
-            gdf_osm_pts.to_file(cache_pts, driver="GeoJSON")
-            log.info(f"✔ {cache_pts} ({len(gdf_osm_pts)} points)")
-
-    # 5b. Grid for the heat map (fig3) ────────────────────────────────────────
-    gdf_grid = gpd.GeoDataFrame()   # initialized empty by default
-    cache_grid = os.path.join(OUTPUT_DIR, "grille_suppressions_kiev.geojson")
-    if os.path.exists(cache_grid):
-        log.info(f"Grid → cache: {cache_grid}")
-        gdf_grid = gpd.read_file(cache_grid)
-    else:
-        gdf_grid = fetch_deletions_geom()
-        if not gdf_grid.empty:
-            gdf_grid.to_file(cache_grid, driver="GeoJSON")
-            log.info(f"✔ {cache_grid}")
 
     # 6. Visualisations ───────────────────────────────────────────────────────
     plot_all(df_del, df_ruins, df_act, df_corr,

@@ -624,32 +624,32 @@ def plot_all(
     # ══════════════════════════════════════════════════════════════════════════
     fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
     fig.suptitle(
-        "Signaux OSM — Frontière Donetsk  |  Fév–Déc 2022",
+        "OSM Signals — Donetsk Border  |  Feb–Dec 2022",
         fontsize=15, fontweight="bold", y=0.99
     )
 
     if not df_act.empty:
         axes[0].bar(df_act["period"], df_act["activity"],
                     color=C["activity"], alpha=0.85, width=25)
-        axes[0].set_ylabel("Contributions / mois", fontsize=10)
-        axes[0].set_title("① Activité globale des contributeurs OSM (bâtiments)", fontsize=11)
+        axes[0].set_ylabel("Contributions / month", fontsize=10)
+        axes[0].set_title("① Global OSM contributor activity (buildings)", fontsize=11)
         axes[0].axvline(pd.Timestamp("2022-02-24"), color="red",
-                        linestyle="--", lw=1.5, label="Invasion 24 fév.")
+                        linestyle="--", lw=1.5, label="Invasion Feb. 24")
         axes[0].legend(fontsize=9)
         axes[0].grid(axis="y", linestyle="--", alpha=0.35)
 
     if not df_del.empty:
         axes[1].bar(df_del["period"], df_del["deletions"],
                     color=C["deletion"], alpha=0.85, width=25)
-        axes[1].set_ylabel("Suppressions / mois", fontsize=10)
-        axes[1].set_title("② Bâtiments OSM supprimés (signal de destruction physique)", fontsize=11)
+        axes[1].set_ylabel("Deletions / month", fontsize=10)
+        axes[1].set_title("② Deleted OSM buildings (physical destruction signal)", fontsize=11)
         axes[1].axvline(pd.Timestamp("2022-02-24"), color="red",
                         linestyle="--", lw=1.5)
         # Peak annotation
         if len(df_del) > 0:
             peak = df_del.loc[df_del["deletions"].idxmax()]
             axes[1].annotate(
-                f"Pic : {int(peak['deletions'])} suppressions",
+                f"Peak: {int(peak['deletions'])} deletions",
                 xy=(peak["period"], peak["deletions"]),
                 xytext=(peak["period"], peak["deletions"] * 1.12),
                 arrowprops=dict(arrowstyle="->", color="black", lw=1.2),
@@ -661,11 +661,11 @@ def plot_all(
     if not df_ruins.empty:
         axes[2].plot(df_ruins["period"], df_ruins["n_ruines"],
                      color=C["ruins"], marker="o", lw=2.5, ms=7,
-                     label="Bâtiments tagués ruins/destroyed")
+                     label="Buildings tagged ruins/destroyed")
         axes[2].fill_between(df_ruins["period"], df_ruins["n_ruines"],
                               alpha=0.18, color=C["ruins"])
-        axes[2].set_ylabel("Nbre de bâtiments", fontsize=10)
-        axes[2].set_title("③ Bâtiments OSM portant des tags ruins / destroyed / disused", fontsize=11)
+        axes[2].set_ylabel("Number of buildings", fontsize=10)
+        axes[2].set_title("③ OSM buildings with ruins / destroyed / disused tags", fontsize=11)
         axes[2].axvline(pd.Timestamp("2022-02-24"), color="red",
                         linestyle="--", lw=1.5)
         axes[2].legend(fontsize=9)
@@ -688,21 +688,21 @@ def plot_all(
 
         bars = ax1.bar(df_corr["period"], df_corr["deletions"],
                        color=C["deletion"], alpha=0.7, width=22,
-                       label="Suppressions OSM / mois")
+                       label="OSM deletions / month")
         ax2.plot(df_corr["period"], df_corr["n_acled_events"],
                  color=C["acled"], marker="D", lw=2.2, ms=8,
-                 label=f"Événements ACLED (fenêtre J-{ACLED_WINDOW_DAYS})")
+                 label=f"ACLED events (D-{ACLED_WINDOW_DAYS} window)")
         ax2.fill_between(df_corr["period"], df_corr["n_acled_events"],
                          alpha=0.12, color=C["acled"])
 
         ax1.axvline(pd.Timestamp("2022-02-24"), color="red",
-                    linestyle="--", lw=1.5, label="Invasion 24 fév.")
-        ax1.set_ylabel("Suppressions OSM / mois", color=C["deletion"], fontsize=11, labelpad=10)
-        ax2.set_ylabel(f"Événements ACLED\n(fenêtre {ACLED_WINDOW_DAYS}j avant fin de mois)",
+                    linestyle="--", lw=1.5, label="Invasion Feb. 24")
+        ax1.set_ylabel("OSM deletions / month", color=C["deletion"], fontsize=11, labelpad=10)
+        ax2.set_ylabel(f"ACLED events\n({ACLED_WINDOW_DAYS}-day window before end of month)",
                        color=C["acled"], fontsize=11, labelpad=10)
         ax1.set_title(
-            "Comparaison : suppressions OSM vs intensité des combats ACLED\n"
-            "Zone Donetsk — Fév–Déc 2022",
+            "Comparison: OSM deletions vs ACLED conflict intensity\n"
+            "Donetsk zone — Feb–Dec 2022",
             fontsize=13, fontweight="bold"
         )
         # Merged legend
@@ -719,7 +719,7 @@ def plot_all(
         if len(df_corr) > 2:
             corr_val = df_corr["deletions"].corr(df_corr["n_acled_events"])
             ax1.text(0.98, 0.95,
-                     f"r de Pearson = {corr_val:.2f}",
+                     f"Pearson r = {corr_val:.2f}",
                      transform=ax1.transAxes, ha="right", va="top",
                      fontsize=11, fontweight="bold",
                      bbox=dict(boxstyle="round,pad=0.4", fc="white",
@@ -741,7 +741,7 @@ def plot_all(
     if not front_gdf.empty:
         front_gdf.plot(ax=ax, color=C["front"], alpha=0.13, zorder=2)
         front_gdf.boundary.plot(ax=ax, color=C["front"], lw=2.2,
-                                label="Zone occupée (DeepState, actuelle)", zorder=3)
+                                label="Occupied zone (DeepState, current)", zorder=3)
 
     if not grid.empty:
         vmax = max(grid["n_deletions"].quantile(0.97), 1)
@@ -749,7 +749,7 @@ def plot_all(
                   cmap="YlOrRd", alpha=0.78,
                   norm=Normalize(vmin=0, vmax=vmax),
                   legend=True,
-                  legend_kwds={"label": "Suppressions OSM / cellule (~5 km)",
+                  legend_kwds={"label": "OSM deletions / cell (~5 km)",
                                "shrink": 0.55, "orientation": "vertical"},
                   zorder=4)
 
@@ -766,7 +766,7 @@ def plot_all(
         else:
             sizes = 5
         gdf_acled.plot(ax=ax, color=C["acled"], markersize=sizes,
-                       alpha=0.45, label="Événements ACLED", zorder=5)
+                       alpha=0.45, label="ACLED events", zorder=5)
 
     if HAS_CTX:
         try:
@@ -776,8 +776,8 @@ def plot_all(
             log.warning(f"Basemap not loaded: {e}")
 
     ax.set_title(
-        "Carte des destructions OSM — Frontière Donetsk, Fév–Déc 2022\n"
-        "Grille de suppressions OSM  +  Événements ACLED  +  Ligne de front DeepStateMap",
+        "OSM destruction map — Donetsk Border, Feb–Dec 2022\n"
+        "OSM deletion grid  +  ACLED events  +  DeepStateMap front line",
         fontsize=12, fontweight="bold"
     )
     ax.set_xlabel("Longitude")
@@ -788,6 +788,7 @@ def plot_all(
     fig.savefig(os.path.join(output_dir, "fig3_carte_synthese.png"), dpi=150, bbox_inches="tight")
     log.info("✔ Fig 3 — synthesis map saved")
     plt.close(fig)
+    return  # only fig3 requested
 
     # ══════════════════════════════════════════════════════════════════════════
     # FIG 4 — ACLED event types (horizontal bars)
@@ -798,15 +799,15 @@ def plot_all(
 
     if type_col:
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-        fig.suptitle("Analyse des événements ACLED — Zone Donetsk, Fév–Déc 2022",
+        fig.suptitle("ACLED events analysis — Donetsk zone, Feb–Dec 2022",
                      fontsize=13, fontweight="bold")
 
         # Left: event types
         counts = gdf_acled[type_col].value_counts().head(8)
         colors = plt.cm.Set2(np.linspace(0, 1, len(counts)))
         counts.plot(kind="barh", ax=axes[0], color=colors, edgecolor="white")
-        axes[0].set_title("Types d'événements", fontsize=11)
-        axes[0].set_xlabel("Nombre d'événements")
+        axes[0].set_title("Event types", fontsize=11)
+        axes[0].set_xlabel("Number of events")
         axes[0].invert_yaxis()
         axes[0].grid(axis="x", linestyle="--", alpha=0.4)
 
@@ -824,8 +825,8 @@ def plot_all(
                 axes[1].plot(monthly["date"], monthly["n"],
                              marker="o", lw=1.8, ms=5,
                              label=typ[:30], color=col, alpha=0.85)
-            axes[1].set_title("Évolution mensuelle (top 4 types)", fontsize=11)
-            axes[1].set_ylabel("Nombre d'événements")
+            axes[1].set_title("Monthly trend (top 4 types)", fontsize=11)
+            axes[1].set_ylabel("Number of events")
             axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
             axes[1].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
             plt.setp(axes[1].xaxis.get_majorticklabels(), rotation=40, ha="right")
@@ -853,12 +854,12 @@ def plot_all(
         if not df_act.empty:
             ax1.bar(df_act["period"], df_act["activity"],
                     color=C["gray"], alpha=0.45, width=22,
-                    label="Activité OSM totale", zorder=1)
+                    label="Total OSM activity", zorder=1)
 
         # Deletions (red)
         ax1.bar(df_del["period"], df_del["deletions"],
                 color=C["deletion"], alpha=0.8, width=15,
-                label="Suppressions OSM", zorder=2)
+                label="OSM deletions", zorder=2)
 
         # Ruin tags (orange)
         if not df_ruins.empty:
@@ -876,17 +877,17 @@ def plot_all(
             monthly_acled["date"] = monthly_acled["date"].dt.to_timestamp()
             ax3.plot(monthly_acled["date"], monthly_acled["count"],
                      color=C["acled"], lw=2, ms=7, marker="D",
-                     linestyle="--", label="Événements ACLED", zorder=4)
+                     linestyle="--", label="ACLED events", zorder=4)
 
         # Invasion line
         ax1.axvline(pd.Timestamp("2022-02-24"), color="red",
-                    linestyle="-", lw=2, alpha=0.7, label="Invasion 24 fév. 2022")
+                    linestyle="-", lw=2, alpha=0.7, label="Invasion Feb. 24, 2022")
 
         # War phase zones
         phases = [
-            ("2022-02-24", "2022-04-01", "#E74C3C", "Phase offensive\ninitiiale"),
-            ("2022-04-01", "2022-09-01", "#E67E22", "Guerre\nd'attrition"),
-            ("2022-09-01", "2022-12-31", "#27AE60", "Contre-\noffensives UKR"),
+            ("2022-02-24", "2022-04-01", "#E74C3C", "Initial\noffensive phase"),
+            ("2022-04-01", "2022-09-01", "#E67E22", "War of\nattrition"),
+            ("2022-09-01", "2022-12-31", "#27AE60", "UKR counter-\noffensives"),
         ]
         for p_start, p_end, color, label in phases:
             ax1.axvspan(pd.Timestamp(p_start), pd.Timestamp(p_end),
@@ -899,12 +900,12 @@ def plot_all(
                 bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=color, alpha=0.7)
             )
 
-        ax1.set_ylabel("Contributions / Suppressions OSM", fontsize=10)
-        ax2.set_ylabel("Bâtiments tags ruins", color=C["ruins"], fontsize=10)
-        ax3.set_ylabel("Événements ACLED / mois", color=C["acled"], fontsize=10)
+        ax1.set_ylabel("OSM Contributions / Deletions", fontsize=10)
+        ax2.set_ylabel("Buildings tagged ruins", color=C["ruins"], fontsize=10)
+        ax3.set_ylabel("ACLED events / month", color=C["acled"], fontsize=10)
         ax1.set_title(
-            "Synthèse : activité OSM, destructions et combats ACLED\n"
-            "Frontière Donetsk — Fév–Déc 2022",
+            "Synthesis: OSM activity, destructions and ACLED conflicts\n"
+            "Donetsk Border — Feb–Dec 2022",
             fontsize=13, fontweight="bold"
         )
         ax1.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
